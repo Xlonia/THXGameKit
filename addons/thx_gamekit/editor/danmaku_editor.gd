@@ -165,6 +165,30 @@ func _build_privates_page() -> Control:
 	box.add_child(top)
 	var pick := OptionButton.new()
 	pick.custom_minimum_size = Vector2(220, 0)
+	## 【0.0.9·新建杂兵（作者 20261111）】弹窗输入键名 → 以默认值建档
+	var newpname := LineEdit.new()
+	newpname.placeholder_text = "新杂兵键名"
+	newpname.custom_minimum_size = Vector2(180, 0)
+	top.add_child(newpname)
+	var newpb := Button.new()
+	newpb.text = "新建杂兵"
+	newpb.pressed.connect(func():
+		var nm: String = newpname.text.strip_edges()
+		if nm == "":
+			_set_status("新建杂兵：请先输入键名")
+			return
+		if CharaDB.get_private_by_name(nm) != null and not CharaDB.get_private_by_name(nm).is_empty():
+			_set_status("新建失败：%s 已存在" % nm)
+			return
+		if CharaDB.new_private(nm):
+			_set_status("已新建杂兵 %s" % nm)
+			pick.add_item(nm)
+			pick.set_item_metadata(pick.item_count - 1, nm)
+			pick.select(pick.item_count - 1)
+			pick.item_selected.emit(pick.item_count - 1)
+		else:
+			_set_status("新建失败：写盘错误"))
+	top.add_child(newpb)
 	for prow in CharaDB.load_privates():
 		pick.add_item("%s　%s" % [prow.get("Name", "?"), prow.get("NameZH", "")])
 		pick.set_item_metadata(pick.item_count - 1, String(prow.get("Name", "")))
@@ -484,6 +508,11 @@ func _in_window_mode() -> bool:
 ## 顶栏菜单
 func _build_menubar() -> MenuBar:
 	var mb := MenuBar.new()
+	## 【0.0.9·内核化 20261111】退出程序常驻顶栏（作者：程序无法退出）
+	var quit_b := Button.new()
+	quit_b.text = "退出程序"
+	quit_b.pressed.connect(func(): _confirm_exit("quit"))
+	mb.add_child(quit_b)
 	var file_menu := PopupMenu.new()
 	file_menu.name = "文件"
 	var items: Array
@@ -1124,7 +1153,7 @@ func _draft_restore() -> bool:
 func _confirm_exit(mode: String) -> void:
 	var dlg := ConfirmationDialog.new()
 	dlg.title = "退出编辑器"
-	dlg.dialog_text = "是否保存后退出？\n· 确认=导出为官方数据后退出\n· 取消=不保存退出（按 draft.csv 还原上次保存点）\n· 关闭窗口=留在编辑器"
+	dlg.dialog_text = "是否保存后退出？\n· 保存并退出=写回数据表后退出程序\n· 不保存退出=按 draft.csv 还原上次保存点\n· 关闭窗口=留在编辑器"
 	dlg.ok_button_text = "保存并退出"
 	dlg.cancel_button_text = "不保存退出"
 	_dialog_reparent(dlg)
@@ -1259,7 +1288,7 @@ func _on_export_official() -> void:
 	var copied := 0
 	for tex_name in GameGlobals.editor_textures:
 		var src := _texture_cache_path(tex_name)
-		var dst := "res://gameAssetBase/shooting/danmaku16pxs/%s.png" % tex_name
+		var dst := "res://addons/thx_gamekit/data/textures/danmaku16pxs/%s.png" % tex_name ## 【内核化】
 		if FileAccess.file_exists(src) and DirAccess.copy_absolute(ProjectSettings.globalize_path(src), ProjectSettings.globalize_path(dst)) == OK:
 			copied += 1
 	GameGlobals.reload_official()
@@ -1760,6 +1789,33 @@ func _build_chara_page() -> Control:
 	for d in chars:
 		pick.add_item("%s　%s" % [d["Name"], d["NameZH"]])
 		pick.set_item_metadata(pick.item_count - 1, d["Name"])
+	## 【0.0.9·新建角色（作者 20261111）】弹窗输入键名 → 以必填默认值建档
+	var newrow := HBoxContainer.new()
+	box.add_child(newrow)
+	var newname := LineEdit.new()
+	newname.placeholder_text = "新角色键名（如 MyChara）"
+	newname.custom_minimum_size = Vector2(220, 0)
+	newrow.add_child(newname)
+	var newb := Button.new()
+	newb.text = "新建角色"
+	newb.pressed.connect(func():
+		var nm: String = newname.text.strip_edges()
+		if nm == "":
+			_set_status("新建角色：请先输入键名")
+			return
+		if CharaDB.get_by_name(nm) != null and not CharaDB.get_by_name(nm).is_empty():
+			_set_status("新建失败：%s 已存在" % nm)
+			return
+		if CharaDB.new_character(nm):
+			_set_status("已新建角色 %s（必填列已填默认值）" % nm)
+			var d := CharaDB.get_by_name(nm)
+			pick.add_item("%s　%s" % [d["Name"], d["NameZH"]])
+			pick.set_item_metadata(pick.item_count - 1, d["Name"])
+			pick.select(pick.item_count - 1)
+			pick.item_selected.emit(pick.item_count - 1)
+		else:
+			_set_status("新建失败：写盘错误"))
+	newrow.add_child(newb)
 	box.add_child(pick)
 	var detail := VBoxContainer.new()
 	detail.size_flags_horizontal = Control.SIZE_EXPAND_FILL

@@ -162,6 +162,89 @@ static func save_row(chara_name: String, row: Dictionary) -> bool:
 	w.close()
 	return true
 
+## 【0.0.9·内核化 20261111】新建角色：逐列取 COL_DEFAULTS（Name=键名），
+## 追加到表尾。必填列由 COL_DEFAULTS 兜底（与 _load_csv 同源）。
+static func new_character(chara_name: String) -> bool:
+	if not get_by_name(chara_name).is_empty():
+		return false ## 已存在
+	var f := FileAccess.open(CSV_PATH, FileAccess.READ)
+	if f == null:
+		return false
+	var header_line := ""
+	var body: Array[String] = []
+	while not f.eof_reached():
+		var line := f.get_line()
+		if header_line == "" and line.strip_edges().replace("﻿", "").begins_with("Name"):
+			header_line = line
+			continue
+		if line.strip_edges() != "":
+			body.append(line)
+	f.close()
+	if header_line == "":
+		return false
+	var header: PackedStringArray = header_line.split(",")
+	var new_cells := PackedStringArray()
+	for h in header:
+		var key := String(h).strip_edges().replace("﻿", "")
+		if key == "Name":
+			new_cells.append(_csv_cell(chara_name))
+		else:
+			new_cells.append(_csv_cell(_cell_or_default({}, key)))
+	var f2 := FileAccess.open(CSV_PATH, FileAccess.WRITE)
+	if f2 == null:
+		return false
+	f2.store_string(header_line + "
+")
+	for line in body:
+		f2.store_string(line + "
+")
+	f2.store_string(",".join(new_cells) + "
+")
+	f2.close()
+	return true
+
+## 【0.0.9·内核化 20261111】新建杂兵（privates.csv；Normal/Determine/Defend/ShootCd 默认）
+static func new_private(private_name: String) -> bool:
+	if not get_private_by_name(private_name).is_empty():
+		return false
+	var f := FileAccess.open(PRIVATES_CSV_PATH, FileAccess.READ)
+	if f == null:
+		return false
+	var header_line := ""
+	var body: Array[String] = []
+	while not f.eof_reached():
+		var line := f.get_line()
+		if header_line == "" and line.strip_edges().replace("﻿", "").begins_with("Name"):
+			header_line = line
+			continue
+		if line.strip_edges() != "":
+			body.append(line)
+	f.close()
+	if header_line == "":
+		return false
+	var header: PackedStringArray = header_line.split(",")
+	var new_cells := PackedStringArray()
+	for h in header:
+		var key := String(h).strip_edges().replace("﻿", "")
+		if key == "Name":
+			new_cells.append(_csv_cell(private_name))
+		elif key == "NameZH" or key == "NameJP" or key == "NameEN":
+			new_cells.append(_csv_cell(private_name))
+		else:
+			new_cells.append(_csv_cell(_cell_or_default({}, key)))
+	var f2 := FileAccess.open(PRIVATES_CSV_PATH, FileAccess.WRITE)
+	if f2 == null:
+		return false
+	f2.store_string(header_line + "
+")
+	for line in body:
+		f2.store_string(line + "
+")
+	f2.store_string(",".join(new_cells) + "
+")
+	f2.close()
+	return true
+
 static func _csv_cell(v) -> String:
 	var s := str(v)
 	if s.contains(",") or s.contains("\""):
