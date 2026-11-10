@@ -164,57 +164,32 @@ static func save_row(chara_name: String, row: Dictionary) -> bool:
 
 ## 【0.0.9·内核化 20261111】新建角色：逐列取 COL_DEFAULTS（Name=键名），
 ## 追加到表尾。必填列由 COL_DEFAULTS 兜底（与 _load_csv 同源）。
+## 【1111c 修订】实现统一到 _append_row（与 .thxp/.thxe 装载共用）。
 static func new_character(chara_name: String) -> bool:
 	if not get_by_name(chara_name).is_empty():
 		return false ## 已存在
-	var f := FileAccess.open(CSV_PATH, FileAccess.READ)
-	if f == null:
-		return false
-	var header_line := ""
-	var body: Array[String] = []
-	while not f.eof_reached():
-		var line := f.get_line()
-		if header_line == "" and line.strip_edges().replace("﻿", "").begins_with("Name"):
-			header_line = line
-			continue
-		if line.strip_edges() != "":
-			body.append(line)
-	f.close()
-	if header_line == "":
-		return false
-	var header: PackedStringArray = header_line.split(",")
-	var new_cells := PackedStringArray()
-	for h in header:
-		var key := String(h).strip_edges().replace("﻿", "")
-		if key == "Name":
-			new_cells.append(_csv_cell(chara_name))
-		else:
-			new_cells.append(_csv_cell(_cell_or_default({}, key)))
-	var f2 := FileAccess.open(CSV_PATH, FileAccess.WRITE)
-	if f2 == null:
-		return false
-	f2.store_string(header_line + "
-")
-	for line in body:
-		f2.store_string(line + "
-")
-	f2.store_string(",".join(new_cells) + "
-")
-	f2.close()
-	return true
+	return _append_row(CSV_PATH, {"Name": chara_name, "NameZH": chara_name,
+		"NameJP": chara_name, "NameEN": chara_name})
 
-## 【0.0.9·内核化 20261111】新建杂兵（privates.csv；Normal/Determine/Defend/ShootCd 默认）
+## 【0.0.9·内核化 20261111】新建杂兵（privates.csv；三语名=键名，其余默认）
+## 【1111c 修订】同上统一 _append_row。
 static func new_private(private_name: String) -> bool:
 	if not get_private_by_name(private_name).is_empty():
 		return false
-	var f := FileAccess.open(PRIVATES_CSV_PATH, FileAccess.READ)
+	return _append_row(PRIVATES_CSV_PATH, {"Name": private_name, "NameZH": private_name,
+		"NameJP": private_name, "NameEN": private_name})
+
+## 【0.0.9·内核化 20261111】行追加（.thxp/.thxe 装载与新建共用）：
+## 逐列 _cell_or_default 兜底（存在→由调用方 upsert，本函数只追加）
+static func _append_row(path: String, row: Dictionary) -> bool:
+	var f := FileAccess.open(path, FileAccess.READ)
 	if f == null:
 		return false
 	var header_line := ""
 	var body: Array[String] = []
 	while not f.eof_reached():
 		var line := f.get_line()
-		if header_line == "" and line.strip_edges().replace("﻿", "").begins_with("Name"):
+		if header_line == "" and line.strip_edges().replace("\ufeff", "").begins_with("Name"):
 			header_line = line
 			continue
 		if line.strip_edges() != "":
@@ -225,25 +200,55 @@ static func new_private(private_name: String) -> bool:
 	var header: PackedStringArray = header_line.split(",")
 	var new_cells := PackedStringArray()
 	for h in header:
-		var key := String(h).strip_edges().replace("﻿", "")
-		if key == "Name":
-			new_cells.append(_csv_cell(private_name))
-		elif key == "NameZH" or key == "NameJP" or key == "NameEN":
-			new_cells.append(_csv_cell(private_name))
-		else:
-			new_cells.append(_csv_cell(_cell_or_default({}, key)))
-	var f2 := FileAccess.open(PRIVATES_CSV_PATH, FileAccess.WRITE)
+		var key := String(h).strip_edges().replace("\ufeff", "")
+		new_cells.append(_csv_cell(_cell_or_default(row, key)))
+	var f2 := FileAccess.open(path, FileAccess.WRITE)
 	if f2 == null:
 		return false
-	f2.store_string(header_line + "
-")
+	f2.store_string(header_line + "\n")
 	for line in body:
-		f2.store_string(line + "
-")
-	f2.store_string(",".join(new_cells) + "
-")
+		f2.store_string(line + "\n")
+	f2.store_string(",".join(new_cells) + "\n")
 	f2.close()
 	return true
+
+## 【0.0.9·内核化 20261111】.thxp/.thxe 装载：角色/杂兵表逐行 upsert
+## （存在→整行覆盖走 save_row/save_private_row；新增→_append_row；键名=首列 Name）
+static func import_csv_text(text: String, kind: String) -> int:
+	var imported := 0
+	var lines := text.split("\n")
+	var header := PackedStringArray()
+	for line in lines:
+		var l := line.strip_edges()
+		if l == "":
+			continue
+		if header.is_empty() and l.replace("\ufeff", "").begins_with("Name"):
+			header = l.replace("\ufeff", "").split(",")
+			continue
+		if header.is_empty():
+			continue
+		var cells := l.split(",")
+		var row := {}
+		for i in header.size():
+			var key := String(header[i]).strip_edges().replace("\ufeff", "")
+			if key != "" and i < cells.size():
+				row[key] = cells[i]
+		var nm := String(row.get("Name", ""))
+		if nm == "":
+			continue
+		if kind == "chara":
+			if not get_by_name(nm).is_empty():
+				if save_row(nm, row):
+					imported += 1
+			elif _append_row(CSV_PATH, row):
+				imported += 1
+		else:
+			if not get_private_by_name(nm).is_empty():
+				if save_private_row(nm, row):
+					imported += 1
+			elif _append_row(PRIVATES_CSV_PATH, row):
+				imported += 1
+	return imported
 
 static func _csv_cell(v) -> String:
 	var s := str(v)

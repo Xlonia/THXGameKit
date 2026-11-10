@@ -508,23 +508,20 @@ func _in_window_mode() -> bool:
 ## 顶栏菜单
 func _build_menubar() -> MenuBar:
 	var mb := MenuBar.new()
-	## 【0.0.9·内核化 20261111】退出程序常驻顶栏（作者：程序无法退出）
-	var quit_b := Button.new()
-	quit_b.text = "退出程序"
-	quit_b.pressed.connect(func(): _confirm_exit("quit"))
-	mb.add_child(quit_b)
 	var file_menu := PopupMenu.new()
 	file_menu.name = "文件"
 	var items: Array
+	## 【0.0.9·三格式存档（作者 20261111）】.thxp=工程（全量可编辑）/ .thx=成品
+	## （mod：事件+材质）/ .thxe=游戏发布包（事件+时间轴+材质+角色杂兵表）
+	var open_filter := "*.thxp ; THX工程,*.thx ; THX成品,*.thxe ; THX发布包"
 	if _in_window_mode():
 		## 窗口模式：无"返回游戏标题"（那会切走游戏主画面导致假死观感），
 		## 关闭窗口即退出编辑器
-		items = ["新建", "打开(.thx)", "导入材质", "保存(.thx)", "导出为官方数据", "关闭编辑器窗口"]
+		items = ["新建", "打开(.thxp/.thx/.thxe)", "导入材质", "保存(.thxp 工程)", "导出成品(.thx)", "导出发布包(.thxe)", "关闭编辑器窗口"]
 	else:
-		items = ["新建", "打开(.thx)", "导入材质", "保存(.thx)", "导出为官方数据", "返回游戏标题", "退出游戏"]
-	if not _is_project_env():
-		var export_label := "打包并导出(.thx)"
-		items[4] = export_label
+		items = ["新建", "打开(.thxp/.thx/.thxe)", "导入材质", "保存(.thxp 工程)", "导出成品(.thx)", "导出发布包(.thxe)", "返回游戏标题", "退出游戏"]
+		if not _is_project_env():
+			items.erase("导出为官方数据") ## 【内核化】无游戏数据目录=官方数据导出无意义（防污染仓库）
 	for i in items.size():
 		file_menu.add_item(items[i], i)
 	file_menu.id_pressed.connect(func(id): _on_menu_file(items[id]))
@@ -578,23 +575,37 @@ func _on_menu_file(item: String) -> void:
 			_refresh_list()
 			_select(0)
 			_set_status("已新建")
-		"打开(.thx)":
+		"打开(.thxp/.thx/.thxe)":
 			_pending_action = "load_thx"
 			_file_dialog.file_mode = FileDialog.FILE_MODE_OPEN_FILE
-			_file_dialog.filters = PackedStringArray(["*.thx ; THX弹幕包"])
+			_file_dialog.filters = PackedStringArray(["*.thxp ; THX工程", "*.thx ; THX成品", "*.thxe ; THX发布包"])
+			_file_dialog.current_dir = ProjectSettings.globalize_path(THXKit.PROJECTS_DIR) ## 【appdata 默认】
 			_file_dialog.popup_centered(Vector2i(900, 600))
 		"导入材质":
 			_pending_action = "import_tex"
 			_file_dialog.file_mode = FileDialog.FILE_MODE_OPEN_FILE
 			_file_dialog.filters = PackedStringArray(["*.png ; PNG图片"])
 			_file_dialog.popup_centered(Vector2i(900, 600))
-		"保存(.thx)", "打包并导出(.thx)":
+		"保存(.thxp 工程)":
+			_pending_action = "save_thxp"
+			_file_dialog.file_mode = FileDialog.FILE_MODE_SAVE_FILE
+			_file_dialog.filters = PackedStringArray(["*.thxp ; THX工程"])
+			_file_dialog.current_dir = ProjectSettings.globalize_path(THXKit.PROJECTS_DIR) ## 【appdata 默认】
+			_file_dialog.popup_centered(Vector2i(900, 600))
+		"导出成品(.thx)":
 			_pending_action = "save_thx"
 			_file_dialog.file_mode = FileDialog.FILE_MODE_SAVE_FILE
-			_file_dialog.filters = PackedStringArray(["*.thx ; THX弹幕包"])
+			_file_dialog.filters = PackedStringArray(["*.thx ; THX成品"])
+			_file_dialog.current_dir = ProjectSettings.globalize_path(THXKit.PROJECTS_DIR)
+			_file_dialog.popup_centered(Vector2i(900, 600))
+		"导出发布包(.thxe)":
+			_pending_action = "save_thxe"
+			_file_dialog.file_mode = FileDialog.FILE_MODE_SAVE_FILE
+			_file_dialog.filters = PackedStringArray(["*.thxe ; THX发布包"])
+			_file_dialog.current_dir = ProjectSettings.globalize_path(THXKit.PROJECTS_DIR)
 			_file_dialog.popup_centered(Vector2i(900, 600))
 		"导出为官方数据":
-			_on_export_official()
+			_on_export_official() ## 【仅游戏工程环境出现在菜单——内核无此目录时自动隐藏】
 		"关闭编辑器窗口":
 			if _in_window_mode():
 				_confirm_exit("close")
@@ -1117,9 +1128,13 @@ func _check_feasibility() -> void:
 func _on_file_selected(path: String) -> void:
 	match _pending_action:
 		"save_thx":
-			_save_thx(path)
+			_save_package(path, "thx")
+		"save_thxp":
+			_save_package(path, "thxp")
+		"save_thxe":
+			_save_package(path, "thxe")
 		"load_thx":
-			_load_thx(path)
+			_load_package(path)
 		"import_tex":
 			_import_texture(path)
 
@@ -1129,7 +1144,7 @@ func _on_file_selected(path: String) -> void:
 ##   ②不保存退出（退出前询问）→ 按 draft 还原工作集并回写分表（丢弃其后改动）
 ##   ③无 draft（从未保存过）时不保存退出=不还原
 ## =============================================================
-const DRAFT_PATH := "res://gameAssetBase/draft.csv"
+const DRAFT_PATH := "user://thx_gamekit/draft.csv" ## 【内核化】appdata（作者 20261111）
 
 func _draft_stash() -> void:
 	var f := FileAccess.open(DRAFT_PATH, FileAccess.WRITE)
@@ -1176,16 +1191,21 @@ func _after_exit(mode: String) -> void:
 		"quit":
 			get_tree().quit()
 
-func _save_thx(path: String) -> void:
+func _save_package(path: String, fmt: String) -> void:
+	## 【0.0.9·三格式（作者 20261111）】
+	##   thxp=工程（事件+时间轴+材质+角色表+杂兵表——全量可编辑）
+	##   thx =成品（mod：事件+事件描述/时间轴+材质——游戏加载器兼容格式）
+	##   thxe=发布包（游戏打包：thx+角色表+杂兵表）
 	_draft_stash() ## 【draft 20261025d】保存前暂存修改前内容
 	_collect_form()
-	if not path.ends_with(".thx"):
-		path += ".thx"
+	var suffix := "." + fmt
+	if not path.ends_with(suffix):
+		path += suffix
 	var zp := ZIPPacker.new()
 	if zp.open(path) != OK:
 		_set_status("保存失败：%s" % path)
 		return
-	## .thx 内同样五路分表（读取兼容旧单文件）
+	## 五路分表（读取兼容旧单文件）
 	for tag: String in GameGlobals.OFFICIAL_EVENT_CSVS:
 		var rows: Array[DanmakuEventData] = []
 		for ev in events:
@@ -1199,7 +1219,7 @@ func _save_thx(path: String) -> void:
 		zp.start_file("danmaku/%s.gd" % ev.event_name)
 		zp.write_file(_gen_event_gd(ev).to_utf8_buffer())
 		zp.close_file()
-	## 时间轴（作者批复：每0.1秒tick安排一个或多个事件，.gd 后缀文件）
+	## 时间轴（每0.1秒tick安排一个或多个事件，.gd 后缀文件）
 	for tl in GameGlobals.editor_timelines:
 		zp.start_file("danmaku/%s.gd" % tl.tl_name)
 		zp.write_file(tl.to_gd().to_utf8_buffer())
@@ -1208,10 +1228,18 @@ func _save_thx(path: String) -> void:
 		zp.start_file("texture/%s.png" % tex_name)
 		zp.write_file(GameGlobals.editor_textures[tex_name])
 		zp.close_file()
+	## thxp/thxe：角色表+杂兵表随包（原样内嵌，游戏/编辑器装载时逐行 upsert）
+	if fmt != "thx":
+		for pair in [["characters.csv", CharaDB.CSV_PATH], ["privates.csv", CharaDB.PRIVATES_CSV_PATH]]:
+			if FileAccess.file_exists(pair[1]):
+				zp.start_file(pair[0])
+				zp.write_file(FileAccess.get_file_as_string(pair[1]).to_utf8_buffer())
+				zp.close_file()
 	zp.close()
-	_set_status("已保存 .thx：%s（%d事件 %d材质）" % [path, events.size(), GameGlobals.editor_textures.size()])
+	var label := {"thxp": "工程", "thx": "成品", "thxe": "发布包"}.get(fmt, fmt)
+	_set_status("已保存 .%s（%s）：%s（%d事件 %d材质）" % [fmt, label, path, events.size(), GameGlobals.editor_textures.size()])
 
-func _load_thx(path: String) -> void:
+func _load_package(path: String) -> void:
 	var zr := ZIPReader.new()
 	if zr.open(path) != OK:
 		_set_status("读取失败：%s" % path)
@@ -1227,6 +1255,10 @@ func _load_thx(path: String) -> void:
 			if DanmakuTex.load_from_bytes(tex_name, zr.read_file(f)):
 				GameGlobals.editor_textures[tex_name] = zr.read_file(f)
 				imported += 1
+		elif f == "characters.csv":
+			CharaDB.import_csv_text(zr.read_file(f).get_string_from_utf8(), "chara") ## 【.thxp/.thxe 装载】
+		elif f == "privates.csv":
+			CharaDB.import_csv_text(zr.read_file(f).get_string_from_utf8(), "privates")
 		elif f.begins_with("danmaku/") and f.ends_with(".gd"):
 			var text := zr.read_file(f).get_string_from_utf8()
 			if TimelineData.is_timeline_gd(text):

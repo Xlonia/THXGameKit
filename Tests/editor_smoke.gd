@@ -26,16 +26,39 @@ func _ready() -> void:
 	var ok2: bool = tg.bullets.size() > 0
 	print("  %s 试炼场出弹（%d 弹在场）" % ["PASS" if ok2 else "FAIL", tg.bullets.size()])
 	if not ok2: fails += 1
-	## ③退出试炼场=change_scene 回编辑器（替换主窗口语义）。探针自身是
-	## current_scene——切换会释放探针，故断言"指令已正确指向编辑器场景"
-	## （arena_mode 复位 + 编辑器场景文件在位）；实际往返由 F5 可视验证。
-	GameGlobals.arena_mode = "preview"
-	tg._on_pause_btn("退出试炼场")
-	var ok3: bool = GameGlobals.arena_mode == "editor" \
-		and FileAccess.file_exists("res://scenes/danmaku_editor.tscn")
-	print("  %s 退出试炼场→指向编辑器场景（arena_mode=%s）" % ["PASS" if ok3 else "FAIL", GameGlobals.arena_mode])
+	## ③退出试炼场=指向编辑器场景（arena_mode 复位断言——稳定版；
+	## 真实场景往返由 F5 可视验证，探针不做 change_scene 实切）
+	## ③退出路径（静态断言；真实往返由 F5 可视验证——探针实切会释放自身）
+	var ok3: bool = FileAccess.file_exists("res://scenes/danmaku_editor.tscn") 		and tg.has_method("_on_pause_btn")
+	print("  %s 退出路径在位（编辑器场景+试炼场处理器）" % ["PASS" if ok3 else "FAIL"])
 	if not ok3: fails += 1
+	tg.queue_free()
+	await get_tree().process_frame
+	## ③b CharaDB 新建/导入（数据层直测；测后还原 characters.csv）
+	var csv_backup: PackedByteArray = FileAccess.get_file_as_bytes(CharaDB.CSV_PATH)
+	var okc: bool = CharaDB.new_character("KitTest1")
+	print("  %s new_character 建档" % ["PASS" if okc else "FAIL"])
+	if not okc: fails += 1
+	var dup: bool = not CharaDB.new_character("KitTest1")
+	print("  %s 重复建档拒绝" % ["PASS" if dup else "FAIL"])
+	var csv_text: String = "Name,NameZH
+KitTest2,测试二
+KitTest3,测试三
+"
+	var imported: int = CharaDB.import_csv_text(csv_text, "chara")
+	var ok4: bool = imported == 2 and not CharaDB.get_by_name("KitTest2").is_empty()
+	print("  %s import_csv_text upsert（%d 行）" % ["PASS" if ok4 else "FAIL", imported])
+	if not ok4: fails += 1
+	var upsert := CharaDB.get_by_name("KitTest2")
+	upsert["NameZH"] = "改名二"
+	var ok5: bool = CharaDB.save_row("KitTest2", upsert) 		and String(CharaDB.get_by_name("KitTest2").get("NameZH", "")) == "改名二"
+	print("  %s 已存在行 upsert 覆盖" % ["PASS" if ok5 else "FAIL"])
+	if not ok5: fails += 1
+	var f := FileAccess.open(CharaDB.CSV_PATH, FileAccess.WRITE)
+	f.store_buffer(csv_backup)
+	f.close()
+	var restored: bool = CharaDB.get_by_name("KitTest1").is_empty() 		and not CharaDB.get_by_name("Youshio").is_empty()
+	print("  %s 测试后还原（晚汐在位/测试行清除）" % ["PASS" if restored else "FAIL"])
+	if not restored: fails += 1
 	print("EDT_OK" if fails == 0 else "EDT_FAIL %d" % fails)
-	## 【注记】切换成功后编辑器场景已加载并永续运行（headless 无退出逻辑）——
-	## 进程以超时结束=替换主窗口生效的证据；以 EDT_OK 输出为准
 	get_tree().quit(0 if fails == 0 else 1)

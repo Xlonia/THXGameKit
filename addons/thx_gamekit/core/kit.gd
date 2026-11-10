@@ -30,6 +30,7 @@ const OFFICIAL_EVENT_CSVS: Dictionary = {
 	DanmakuEventData.TAG_NODES: "res://addons/thx_gamekit/data/danmaku_event_nodes.csv",
 }
 const TIMELINES_DIR := "res://addons/thx_gamekit/data/timelines"
+const PROJECTS_DIR := "user://thx_gamekit" ## 【appdata 默认】.thxp/.thx/.thxe 存放处（作者 20261111）
 const MOD_DIRS: Array[String] = ["res://mods", "user://mods"]
 
 ## —— 弹幕事件池 ——
@@ -43,6 +44,7 @@ var official_timelines: Dictionary = {} ## 官方时间轴注册表（名→Time
 var mod_timelines: Dictionary = {}   ## mod 时间轴注册表（名→TimelineData）
 
 func _ready() -> void:
+	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(PROJECTS_DIR))
 	_load_official()
 	_load_official_timelines()
 
