@@ -44,6 +44,22 @@ var mod_timelines: Dictionary = {}   ## mod 时间轴注册表（名→TimelineD
 
 func _ready() -> void:
 	_load_official()
+	_load_official_timelines()
+
+## 官方时间轴装载：data/timelines/*.gd（TimelineData.parse_gd 文本格式）
+func _load_official_timelines() -> void:
+	var dir := DirAccess.open(TIMELINES_DIR)
+	if dir == null:
+		return
+	dir.list_dir_begin()
+	var f := dir.get_next()
+	while f != "":
+		if f.ends_with(".gd"):
+			var tl := TimelineData.parse_gd(FileAccess.get_file_as_string(TIMELINES_DIR.path_join(f)))
+			if not official_timelines.has(tl.tl_name):
+				official_timelines[tl.tl_name] = tl
+		f = dir.get_next()
+	dir.list_dir_end()
 
 func _load_official() -> void:
 	var loaded := false
