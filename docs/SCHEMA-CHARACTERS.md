@@ -10,8 +10,17 @@
 
 ## 本体列（内核读取）——含必填列之外
 
-`NameZH / NameJP / NameEN`（三语名）· `Main_Cd / Sub_Cd`（火力冷却——由用户决定
-该角色用时间轴还是 Cd，故属本体）· `Weapon_Muti`（火力点乘数——排布，待确认）
+`NameZH / NameJP / NameEN`（三语名）· `Defend`（结界规模——非必填；可复刻
+东方兽王园式次级防护能力）· `Weapon_Muti`（火力点乘数——排布，待确认）
+
+### 火力冷却 Main_Cd / Sub_Cd（本体·**非必须，按角色类别分别讨论**）
+
+- **STG 道中角色**：弹幕规律服从**时间轴**——Cd 对其无意义（时间轴驱动）
+- **间歇释放角色**：Cd 可以为**时间轴生成预设**（由 Cd 反推 tick 编排）
+- **自机（玩家）**：不适用时间轴——依赖 Cd
+
+（20261111 修订：上轮"Cd 属本体"的回答大意了——正确口径=Cd 类是不同
+类别角色分别讨论的非必须项。）
 
 ## 槽位列（结构，编辑器管理）
 
@@ -19,12 +28,12 @@
 
 ## 插件列（自走棋插件读取）
 
-`Mag / Phy / ID / Char_Raid / Char_Allfire / Char_Blitz / Char_Cover /
-Char_Elast / Char_Delay / Char_Feint`
+`Mag / Phy / ID / Team`（队伍/建队序）· `Char_Raid / Char_Allfire / Char_Blitz /
+Char_Cover / Char_Elast / Char_Delay / Char_Feint`
 
-## 未分类（待作者补裁定）
+## 未分类
 
-`Team`（队伍/建队序）、`Defend`（结界规模——疑为自走棋插件列）
+（20261111 全部裁定完毕：Team→插件；Defend→本体非必填；Cd 类→本体非必须按角色类别讨论。）
 
 ## 勘误
 
