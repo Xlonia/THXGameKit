@@ -1,0 +1,16 @@
+[remap]
+
+importer="csv_translation"
+type="Translation"
+uid="uid://c0itbrxculcnq"
+
+[deps]
+
+source_file="res://addons/thx_gamekit/data/danmaku_event_physical.csv"
+
+[params]
+
+compress=1
+delimiter=0
+unescape_keys=false
+unescape_translations=true

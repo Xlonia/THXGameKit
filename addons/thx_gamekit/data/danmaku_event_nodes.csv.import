@@ -1,0 +1,16 @@
+[remap]
+
+importer="csv_translation"
+type="Translation"
+uid="uid://c74tirnokaj14"
+
+[deps]
+
+source_file="res://addons/thx_gamekit/data/danmaku_event_nodes.csv"
+
+[params]
+
+compress=1
+delimiter=0
+unescape_keys=false
+unescape_translations=true

@@ -1,0 +1,16 @@
+; Engine configuration file.
+config_version=5
+
+[application]
+
+config/name="THXGameKit"
+config/description="弹幕专题游戏制作内核（次级引擎）——弹幕运行时/事件/时间轴/角色数据基底"
+config/features=PackedStringArray("4.7")
+
+[autoload]
+
+THXKit="*res://addons/thx_gamekit/core/kit.gd"
+
+[editor_plugins]
+
+enabled=PackedStringArray("addons/thx_gamekit/plugin.cfg")

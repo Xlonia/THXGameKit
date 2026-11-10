@@ -1,0 +1,16 @@
+[remap]
+
+importer="csv_translation"
+type="Translation"
+uid="uid://co20shjjauqjb"
+
+[deps]
+
+source_file="res://addons/thx_gamekit/data/privates.csv"
+
+[params]
+
+compress=1
+delimiter=0
+unescape_keys=false
+unescape_translations=true

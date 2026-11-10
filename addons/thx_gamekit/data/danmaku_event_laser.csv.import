@@ -1,0 +1,16 @@
+[remap]
+
+importer="csv_translation"
+type="Translation"
+uid="uid://dps6eiekp6p1p"
+
+[deps]
+
+source_file="res://addons/thx_gamekit/data/danmaku_event_laser.csv"
+
+[params]
+
+compress=1
+delimiter=0
+unescape_keys=false
+unescape_translations=true

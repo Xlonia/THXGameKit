@@ -7,11 +7,26 @@ RPG / Roguelike）作为内核插件接入。
 **首个插件玩法**：[THX75 东方消望纪-无欲拾食纪](https://github.com/Xlonia/THX75)
 （Touhou Xenothers: Keshinozoshiki）——弹幕决斗自走棋。
 
+## 安装
+
+本内核属于 THX 系列作品的 **submodule 模块**：内核源码不在游戏仓库里，游戏仓
+只保存一个"指向本仓库某次提交"的指针——这就是跨仓库同步更新的来源，也是
+"直接拷贝游戏文件夹带不上内核"的原因（拷走的只是指针，不是代码）。
+
+- **游戏仓接入内核**：`git submodule add https://github.com/Xlonia/THXGameKit addons/thx_gamekit`
+- **克隆含内核的游戏仓**：`git clone --recurse-submodules <游戏仓地址>`
+  （已经克隆过的，在游戏仓内执行 `git submodule update --init` 补拉）
+- **同步内核更新**：本仓库更新后，在游戏仓执行
+  `git submodule update --remote addons/thx_gamekit`，然后把指针变化 commit 进游戏仓
+- **不使用 submodule 的替代**：直接下载本仓库（Code → Download ZIP），解压为
+  游戏工程内的 `addons/thx_gamekit/` 目录——功能完全一致，只是失去自动同步，
+  升级时重新下载覆盖即可
+
 ## 状态
 
-`架构咨询中`（2026-11-11）——内核边界划分提案与开放问题见
-[docs/ARCHITECTURE-PROPOSAL.md](docs/ARCHITECTURE-PROPOSAL.md)，
-代码抽取尚未开始。
+**数据基底 v0 已迁移**（2026-11-11）——弹幕事件/表达式/材质/时间轴/角色表
+（详见 [docs/MIGRATION-STEP1.md](docs/MIGRATION-STEP1.md)）；
+下一迁移步=弹幕编辑器与实体底座。
 
 ## 愿景
 
@@ -30,6 +45,96 @@ THX75（游戏）── 自走棋玩法插件 ──┐
 未来 STG 游戏 ── STG 玩法插件 ──┘
 ```
 
-## 许可证
+## THX 系列（共用本内核）
 
-待定（架构咨询问题 #1）。
+| 作品 | 类型 | 内容 |
+|---|---|---|
+| THX06 东方岚露汐 | STG | 两次异变二合一 |
+| THX061 东方月都保卫战 | GSG+RTS | 原作与本二创多异变的月球视角（引用需额外商议与裁剪） |
+| THX07 东方消望纪 | STG | 单一异变 |
+| THX075 无欲拾食纪 | RPG（弹幕自走棋） | 与东方消望纪同一异变；本内核首个插件示范 |
+
+除 THX061 需要额外商议、以及在引用时需要裁剪外，这些游戏都共用同一套内核。
+
+## 基础功能
+
+本内核为专用于东方Project (Touhou Project)的二创游戏设计的次级游戏引擎，基于Godot，旨在简便且可视化地制作弹幕，以及将弹幕分配给不同角色、群体角色个体(杂兵)，同时支持在不同场合下，依靠插件泛化游戏功能，实现卷轴射击(STG)、自走棋(AutoChess)、角色扮演(RPG)、地牢(类Rouge,Rouge-like)等功能。作为东方Project同好的一员，无论如何，我保证这一切都将永久免费。
+
+本仓库是此次级引擎的原版功能，更多插件，详见其关联仓库。
+
+本内核为各种弹幕提供了显示、弹幕个体重复、弹幕运行方式，被称为弹幕事件，这些弹幕事件被分配给角色和杂兵，这些个体按照时间轴先后释放弹幕，投射为弹幕伤害图，演出一个关卡。
+
+其中，作为游戏玩法专业化功能，其时间轴并非强制内容，弹幕事件本身的重复门(pattern和rate两类)可以承担多种功能，适合THX75的自走棋，以及本系列后续可能会做的Rouge-like游戏。
+
+### 弹幕运行
+
+弹幕事件按六种运行类型定义，每类型一张官方数据表：
+
+| 类型 | 表 | 特征 |
+|---|---|---|
+| 一般（Regular） | danmaku_event_regular.csv | 经典粒子：从事件取速度、航程（消失时间） |
+| 物理（Physical） | danmaku_event_physical.csv | 有加速度与速度 |
+| 轨道（Functed） | danmaku_event_functed.csv | 速度不变，按函数做垂直于速度的偏移 |
+| 点向（Nodes） | danmaku_event_nodes.csv | 以角色/杂兵为目标的节点（非粒子） |
+| NodesB | danmaku_event_nodes.csv | 标准物理节点，支持"弹幕推弹幕"对撞 |
+| 激光（Laser） | danmaku_event_laser.csv | n(k) 遍历换元采样成几何 |
+
+### 弹幕编辑器（内核必备件）
+
+- **参数页**：上述六类型逐项可编辑——速度/加速度/航程/伤害/材质/颜色/
+  大小/旋转重复（rotate_range/div/rate/offset/pingpong/delay，全部表达式化）/
+  重复释放（repeat_time/freq）
+- **表达式系统**：x/y/速度/航程/透明度(alpha)/隐身(pass)/色相/对比度等字段
+  支持运算式——变量含 `t`（事件年龄）、`t_copy`（副本年龄）、`wpcs`（火力点序）、
+  `to_c`（快慢机系数）、`gettarget(x/y/d)`（目标快照）、`getChataFriend/Enemy`
+  （角色查询）、`getField`（场地参数）、`r0/r1`（随机数）；编译期常量折叠；
+  C++ 扩展加速（无扩展自动回退内置求值器）
+- **释放门**：随机概率(rate)与规律池(pattern)两类，均可写命题表达式——
+  两门同时为真才释放
+- **角色页**：狭义本体（键名/中日英名/快机速度/慢机速度/火力点排布与占比）+
+  弹幕槽位（main/sub/rest 挂载）+ 能力符卡时间轴绑定 + 贴图导入与预览
+- **杂兵页 / 排布页**：杂兵数据与排布公式（termin_point 系表达式，玩家可覆盖并持久化）
+- **时间轴页**：0.1 秒一 tick 的事件编排（能力/符卡用；保存为可读的 .gd 文本）
+- **试炼场预览**：一键把窗口替换为实时试炼场，Esc 面板=解除暂停/退出试炼场
+- **工程功能**：.thx 导入导出（zip：事件表+材质）、引用反查（材质→角色/事件）、
+  可行性检查（全事件编译）、导出为官方数据、机控预设点设置
+
+### 时间轴
+
+分为影响特定角色的符卡槽位的时间轴（skill/spell_evs，0.1 秒一 tick），
+以及影响角色出场的绝对时间轴（②期）。
+
+## 文件结构
+
+```
+addons/thx_gamekit/
+  plugin.cfg / plugin.gd        # Godot 插件入口
+  core/
+    kit.gd                      # 数据基底单例（autoload THXKit）：
+                                #   事件池/Mod 加载/槽位与时间轴解析/官方表同步
+    danmaku/danmaku_event_data.gd  # 弹幕事件数据与编译（六类型/CSV 读写）
+    danmaku/danmaku_expr.gd        # 表达式求值器（常量折叠+C++ 加速回退）
+    danmaku/danmaku_tex.gd         # 材质注册与运行时导入
+    danmaku/timeline_data.gd       # 时间轴数据（0.1s tick，.gd 文本格式）
+    data/chara_db.gd               # 角色/杂兵 CSV 读写基建
+  data/
+    characters.csv           # 角色表（示例=晚汐 Youshio）
+    danmaku_event*.csv       # 官方事件表（按运行类型分表 + 旧单文件兼容）
+    enemy.csv / privates.csv # 敌表/杂兵表（表头占位——由玩法插件填充）
+    timelines/               # 时间轴 .gd 库
+    textures/danmaku16pxs/   # 弹幕材质（16px 基准包）
+    textures/chars/          # 角色贴图（示例=晚汐）
+docs/                        # 架构提案 / 迁移记录 / 多语言 README
+```
+
+## 官方插件制作计划
+
+岚露(Arashitsuyu)：经典东方原作STG适配，支持资源收集条件编写、额外资源、额外角色伤害修正，以及角色切换、rpy录像、事件编辑
+
+消望(Keshinozo)：自走棋适配，附带若干弹幕图与热力图，让角色自己躲避弹幕，以及返回关卡奖励
+
+竹林(Takenomori)：RPG适配，用于对接场景切换、数据继承、存档读取
+
+## 免责声明
+
+THXGameKit的原作者为Xlonia，代码通过MIT许可开源，除Xlonia本人外，任何使用者、二进制编译者，使用本引擎或内核的产物，不受Xlonia的制约，因此，Xlonia也无义务承担除本人外，本产品其他使用者引起的任何争议、侵权、法律违反等情形。
