@@ -17,7 +17,7 @@ static var runtime_cache: Dictionary = {}
 
 static var _official_index: Dictionary = {} ## 材质名(小写) -> res:// 绝对路径
 static var _official_scanned := false
-static var DATA_BASE := "" ## 【内核化】由 THXKit 推送（宿主可覆盖）
+static var DATA_BASE := "" ## 【内核化】材质根目录本身（danmaku16pxs）；由 THXKit 推送（宿主可覆盖）
 static var _warned_missing: Dictionary = {} ## 缺材质一次性告警（诊断"白圆弹幕"）
 
 static func resolve(name: String) -> Texture2D:
@@ -43,8 +43,10 @@ static func _scan_official_once() -> void:
 	if _official_scanned:
 		return
 	_official_scanned = true
-	var scan_dir := DATA_BASE.path_join("danmaku16pxs") if DATA_BASE != "" else "res://gameAssetBase/shooting/danmaku16pxs"
+	## 【DATA_BASE 语义=材质根目录本身（danmaku16pxs）——宿主直接指向，不再二次拼接】
+	var scan_dir := DATA_BASE if DATA_BASE != "" else "res://gameAssetBase/shooting/danmaku16pxs"
 	var dir := DirAccess.open(scan_dir)
+	print("[scan] dir=%s open=%s DATA_BASE_type=%s" % [scan_dir, str(dir != null), type_string(typeof(DATA_BASE))])
 	if dir == null:
 		return
 	dir.list_dir_begin()

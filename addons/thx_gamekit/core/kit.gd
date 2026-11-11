@@ -35,7 +35,7 @@ func _resolve_paths() -> void:
 	SCENES_DIR = addon_dir.path_join("scenes").simplify_path()
 	## 推送静态基准（chara_db/danmaku_tex/chara_tex 为全静态类）
 	CharaDB.DATA_BASE = DATA_DIR
-	DanmakuTex.DATA_BASE = DATA_DIR.path_join("textures/danmaku16pxs").simplify_path()
+	DanmakuTex.DATA_BASE = DATA_DIR.path_join("textures/danmaku16pxs").simplify_path() ## 根目录本身
 	CharaTex.DATA_BASE = DATA_DIR.path_join("textures/chars").simplify_path()
 const MOD_DIRS: Array[String] = ["res://mods", "user://mods"]
 
