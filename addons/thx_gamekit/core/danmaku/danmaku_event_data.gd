@@ -270,9 +270,10 @@ func bind_preview_refresh(_cb: Callable) -> void:
 ## 【0.0.9·③】偏心中心列求值（整式；出生定值）
 func eval_num_global(col: String, dflt: float) -> float:
 	var e: DanmakuExpr = _spin_x_expr if col == "spin_x" else _spin_y_expr
-	if e == null:
-		return dflt
-	return e.execute([], dflt)
+	if e != null:
+		return e.execute([], dflt)
+	## 表达式缺失 → 读值成员（程序化赋值/运行时接口生效；CSV 路径走 compile）
+	return spin_x if col == "spin_x" else spin_y
 var pass_const := false
 var ex_lost_if: DanmakuExpr = null
 var ex_asa: DanmakuExpr = null  ## 预警期不透明度比值（表达式）
