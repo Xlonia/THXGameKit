@@ -40,8 +40,9 @@ var impale_cap: float = INF      ## 穿透伤害上限钩子（道具/玩法插�
 var touch_state: Dictionary = {}
 ## 【通用资源点数】内核不含"P 点"语义——成员与封顶由玩法插件赋值/覆盖；
 ## 成员放内核是因宿主大量 ent.pp 引用（自走棋插件延续使用）
+const PP_CAP := 500 ## 【自走棋插件语义】P点封顶（宿主大量引用）
 var pp := 0
-var pp_cap := 500
+var pp_cap := PP_CAP
 
 func add_pp(amount: int) -> int:
 	pp += amount
