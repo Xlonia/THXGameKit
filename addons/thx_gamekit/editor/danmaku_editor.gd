@@ -530,6 +530,19 @@ func _build_menubar() -> MenuBar:
 		file_menu.add_item(items[i], i)
 	file_menu.id_pressed.connect(func(id): _on_menu_file(items[id]))
 	mb.add_child(file_menu)
+	## 【0.0.9·③ 特殊判定盒开关（作者：Kit 编辑面板内容）】设置菜单
+	var settings_menu := PopupMenu.new()
+	settings_menu.name = "设置"
+	settings_menu.add_item("特殊判定盒（黑白位图判定）", 1)
+	settings_menu.add_item("旋转-运动中心偏移显示", 2)
+	mb.add_child(settings_menu)
+	settings_menu.id_pressed.connect(func(id):
+		if id == 1:
+			Bullet.special_hitbox_enabled = not Bullet.special_hitbox_enabled
+			_set_status("特殊判定盒：%s（仅带 hitbox 列黑白图的弹幕生效）" % ("开" if Bullet.special_hitbox_enabled else "关"))
+		elif id == 2:
+			_show_spin_overlay = not _show_spin_overlay
+			_set_status("旋转-运动中心覆盖显示：%s" % ("开" if _show_spin_overlay else "关")))
 	var edit_menu := PopupMenu.new()
 	edit_menu.name = "编辑"
 	var edit_items := ["撤销", "重做", "项目信息", "查找"]
@@ -2339,6 +2352,8 @@ func _refresh_tl_detail() -> void:
 ##   玩家在该浮窗内按 Z 让角色发射当前选中的单个弹幕事件，Esc 关闭浮窗。
 ## =============================================================
 var _preview_window: Window = null
+## 【0.0.9·③】编辑器设置状态
+var _show_spin_overlay := true ## 旋转-运动中心覆盖显示（预览/试炼场共用）
 var _chara_render := Callable() ## 角色页重渲染（绑定框增删后调用；解决 lambda 自引用）
 var _priv_render := Callable() ## 杂兵页重渲染（lambda 自引用方案）
 

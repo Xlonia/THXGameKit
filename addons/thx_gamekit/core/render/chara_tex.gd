@@ -20,12 +20,18 @@ static func _scan_dir() -> void:
 	if _dir_scanned:
 		return
 	_dir_scanned = true
-	var dir := DirAccess.open("res://addons/thx_gamekit/data/textures/chars")
+	## 【0.0.9·挂载点无关】DATA_BASE=角色贴图目录本身（THXKit 推送/宿主覆盖）
+	var scan_dir := DATA_BASE if DATA_BASE != "" else "res://addons/thx_gamekit/data/textures/chars"
+	var dir := DirAccess.open(scan_dir)
 	if dir == null:
 		return
 	for f in dir.get_files():
 		if f.to_lower().ends_with(".png") and not f.ends_with(".import"):
-			_stem_map[f.get_basename().to_lower()] = "res://addons/thx_gamekit/data/textures/chars/" + f
+			_stem_map[f.get_basename().to_lower()] = scan_dir.path_join(f)
+
+## 【编辑器导入/清除路径】角色贴图目录本身
+static func chars_dir() -> String:
+	return DATA_BASE if DATA_BASE != "" else "res://addons/thx_gamekit/data/textures/chars"
 
 ## 名字→文件主干：全名 → 去尾部 A/B → 中文名
 static func _resolve(name_key: String, name_zh: String) -> String:
