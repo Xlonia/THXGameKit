@@ -24,6 +24,10 @@ const SCHEMA_COMMON := [
 	## 槽位完全由角色页绑定决定，事件侧空位即歧义，故彻底移除
 	["timeline_frame", "时间轴帧(-1=火控循环)", "int"],
 	["texture", "材质名", "opt_tex"],
+	## 【0.0.9·③ 偏心中心+特殊判定盒】
+	["spin_x", "旋转-运动中心X(像素,默认0)", "num"],
+	["spin_y", "旋转-运动中心Y(像素,默认0)", "num"],
+	["hitbox", "判定盒图(黑白PNG·特殊判定盒用)", "opt_tex"],
 	["color_adv", "颜色(#hex)·高级RGB", "color_adv"],
 	["dmg", "伤害(整式,碎甲类=瘫痪秒)", "num_expr"],
 	["dmg_mode", "攻击模式", "opt", ["N", "I", "S"]],
@@ -616,6 +620,41 @@ func _on_menu_file(item: String) -> void:
 		"退出游戏":
 			_confirm_exit("quit")
 
+## 【0.0.9·③ 材质/判定盒/旋转中心覆盖显示】通用参数页底部预览：
+##   材质 64px + 判定盒图半透明红叠加 + 旋转-运动中心橙点
+##   （spin_x/spin_y 或 hitbox 编辑变化时实时重绘——绑定在表单构建后）
+func _append_common_preview(page: Control, ev: DanmakuEventData) -> void:
+	var box := VBoxContainer.new()
+	page.add_child(box)
+	var l := Label.new()
+	l.text = "【材质/判定盒/旋转中心】红=判定盒图叠加 橙点=旋转-运动中心"
+	l.add_theme_font_size_override("font_size", 11)
+	box.add_child(l)
+	var prev := TextureRect.new()
+	prev.custom_minimum_size = Vector2(128, 128)
+	prev.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	prev.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	prev.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	box.add_child(prev)
+	## 覆盖显示画布（判定盒红图+中心点，与材质同框）
+	var ov := Control.new()
+	ov.custom_minimum_size = Vector2(128, 128)
+	ov.set_script(load("res://addons/thx_gamekit/editor/preview_overlay.gd"))
+	box.add_child(ov)
+	var refresh := func():
+		var tex: Texture2D = DanmakuTex.resolve(ev.texture)
+		var htex: Texture2D = DanmakuTex.resolve(ev.hitbox_name) if str(ev.hitbox_name).strip_edges() != "" else null
+		prev.texture = tex
+		var himg: Image = htex.get_image() if htex != null and htex.get_image() != null else null
+		ov.set_script(null)
+		ov.set_script(load("res://addons/thx_gamekit/editor/preview_overlay.gd"))
+		ov.base_tex = tex
+		ov.hitbox_img = himg
+		ov.spin_center = Vector2(ev.spin_x, ev.spin_y)
+		ov.queue_redraw()
+	refresh.call()
+	ev.bind_preview_refresh(refresh)
+
 ## =============================================================
 ## 标签页表单：通用参数 / 弹幕表达(tag互斥) / 使用者
 ## =============================================================
@@ -632,7 +671,9 @@ func _build_tabs(ev: DanmakuEventData) -> void:
 		c.queue_free() ## 同名新页当帧加入会被 Godot 改名 "@VBoxContainer@N"
 	_widgets.clear()
 	## Tab1 通用（含颜色HSL——设计图 BoardBasic2：三个标签）
-	_tabs.add_child(_make_form_page("通用参数", SCHEMA_COMMON + SCHEMA_COLOR, ev))
+	var common_page: Control = _make_form_page("通用参数", SCHEMA_COMMON + SCHEMA_COLOR, ev)
+	_append_common_preview(common_page, ev)
+	_tabs.add_child(common_page)
 	## Tab2 弹幕表达（互斥）
 	var tag_schema: Array = SCHEMA_BY_TAG.get(ev.tag, [])
 	## 【修复选框遮挡】弹幕表达页 = VBox[ 顶部tagrow(不滚动) + 表单ScrollContainer ]

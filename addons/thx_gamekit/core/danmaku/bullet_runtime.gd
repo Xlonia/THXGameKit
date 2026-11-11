@@ -78,6 +78,15 @@ var laser_aabb_size := Vector2.ZERO
 var tex: Texture2D
 var tex_half := 8.0
 var draw_radius := 8.0
+## 【0.0.9·③ 偏心中心（作者 20261111）】旋转-运动中心偏移（像素，弹幕局部系）；
+## (0,0)=默认中心（静态跳过——不进偏心渲染/判定代码，零开销）；非零=渲染与
+## 判定盒以偏移点为旋转中心
+var spin_offset := Vector2.ZERO
+## 【0.0.9·③ 特殊判定盒】黑白位图判定盒（PackedByteArray 0/1，宽=高=材质尺寸
+## ×size_mul 采样）——仅全局开关开启且本弹有盒图时参与被弹判定（替代圆）
+var hitbox_bits := PackedByteArray()
+var hitbox_w := 0
+var hitbox_h := 0
 var hue_val := 0.0
 var sat_val := 1.0
 var base_sat := 1.0 ## 【修2】事件 color 的基础饱和度（对比度倍乘的作用基）
@@ -217,6 +226,10 @@ func setup(event: DanmakuEventData, spawn_origin: Vector2, bullet_side: int, src
 	tex = DanmakuTex.resolve(ev.texture)
 	tex_half = DanmakuTex.half_size(tex)
 	draw_radius = tex_half * ev.danmaku_size_muti
+	## 【0.0.9·③】偏心中心：定值求值（数字/常量式→静态跳过；表达式求值一次定格）
+	spin_offset = Vector2(ev.eval_num_global("spin_x", 0.0), ev.eval_num_global("spin_y", 0.0))
+	if spin_offset != Vector2.ZERO:
+		_special_hitbox_load()
 	## 【量纲迁移 20261019】saturation/hue 为 0~256 整数量纲（类型一览.csv）；
 	## hue 相对 color 基础色相偏移：H = fposmod(base_hue + hue/256, 1)
 	base_hue_now = ev.base_hue()
@@ -956,6 +969,13 @@ func hit_radius() -> float:
 
 ## 圆碰撞（实体判定圆 vs 弹幕圆；激光走线段集合）
 func overlaps_circle(cx: float, cy: float, r: float) -> bool:
+	## 【0.0.9·③ 特殊判定盒】盒已载（全局开+有盒图）→ 位图采样（含对方
+	## 判定圆 r 的膨胀：采样盒+四向 r 偏移点任一命中=接触）
+	if hitbox_bits.is_empty() == false and special_hitbox_enabled:
+		for off in [Vector2.ZERO, Vector2(r, 0), Vector2(-r, 0), Vector2(0, r), Vector2(0, -r)]:
+			if hitbox_sample(Vector2(cx, cy) + off):
+				return true
+		return false
 	if ev.tag == DanmakuEventData.TAG_LASER:
 		## 【瞬时类性能修复 20261005】AABB 快速排除后再走线段
 		## （此前每查询线性扫最多 801 段——比 Nodes 单点判定贵百倍）
@@ -1455,6 +1475,55 @@ func current_alpha_01() -> float:
 	if ev.tag == DanmakuEventData.TAG_LASER and t <= alarm_now:
 		a *= asa_now / 256.0 ## 预警期不透明度（0~256 整数量纲——20261019 迁移）
 	return clampf(a, 0.0, 1.0)
+
+## 【0.0.9·③ 静态跳过】默认 (0,0) 弹幕恒 false——偏心渲染/判定零开销
+func spin_offcenter() -> bool:
+	return spin_offset != Vector2.ZERO
+
+## 【0.0.9·③ 特殊判定盒加载】材质黑白图 → 1bit 判定盒（白=判定）
+## 仅全局开关（special_hitbox_enabled）开启时加载；否则空=圆判定
+func _special_hitbox_load() -> void:
+	if not special_hitbox_enabled or ev.hitbox_name.strip_edges() == "":
+		return
+	var tex := DanmakuTex.resolve(ev.hitbox_name)
+	if tex == null or tex.get_image() == null:
+		return
+	var img := tex.get_image()
+	img.resize(maxi(8, int(draw_radius * 2.0)), maxi(8, int(draw_radius * 2.0)), Image.INTERPOLATE_NEAREST)
+	hitbox_w = img.get_width()
+	hitbox_h = img.get_height()
+	hitbox_bits.resize(hitbox_w * hitbox_h)
+	for yy in hitbox_h:
+		for xx in hitbox_w:
+			hitbox_bits[yy * hitbox_w + xx] = 1 if img.get_pixel(xx, yy).r > 0.5 else 0
+
+## 【0.0.9·③ 特殊判定盒】局部采样判定：世界点 → 弹局部系（含偏心旋转）
+## → 位图查询；盒外/位=0 → false（回退圆判定语义由调用方组合）
+func hitbox_sample(world_pt: Vector2) -> bool:
+	if hitbox_bits.is_empty() or hitbox_w <= 0:
+		return false
+	var local := world_pt - pos
+	if spin_offcenter():
+		local = local - spin_offset.rotated(draw_rotation())
+	local = local.rotated(-draw_rotation())
+	var half := Vector2(hitbox_w, hitbox_h) * 0.5
+	local += half
+	var ix := int(local.x)
+	var iy := int(local.y)
+	if ix < 0 or ix >= hitbox_w or iy < 0 or iy >= hitbox_h:
+		return false
+	return hitbox_bits[iy * hitbox_w + ix] == 1
+
+## 【0.0.9·③ 全局开关】特殊判定盒（宿主设置；THX 系列恒 false）
+static var special_hitbox_enabled := false
+
+## 【0.0.9·③ 渲染变换】默认=(pos, rotation) 与旧渲染逐位一致；偏心弹=
+## 位置偏移到“偏心点绕弹心旋转后的位置”、旋转不变（贴图绕偏心点公转）
+func draw_transform() -> Transform2D:
+	var xf := Transform2D(draw_rotation(), pos)
+	if spin_offset != Vector2.ZERO:
+		xf.origin -= spin_offset.rotated(draw_rotation())
+	return xf
 
 func draw_rotation() -> float:
 	match ev.tag:

@@ -27,6 +27,10 @@ var editor_textures: Dictionary = {} ## 自定义导入材质（名→字节流/
 var preview_event_name := ""         ## 试炼场预览的事件名
 var arena_mode := "editor"           ## editor / preview
 
+## 【0.0.9·③ 特殊判定盒（作者 20261111）】THX 系列恒 false；原作复刻插件可开
+func _ready() -> void:
+	pass ## 特殊判定盒默认 false（Bullet.special_hitbox_enabled 内核默认值——THX 系列无需显式关）
+
 func sync_official_events(events: Array, exclude_names: PackedStringArray = PackedStringArray()) -> void:
 	THXKit.sync_official_events(events, exclude_names)
 

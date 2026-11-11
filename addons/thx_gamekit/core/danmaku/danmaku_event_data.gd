@@ -89,6 +89,7 @@ const CSV_HEADER: PackedStringArray = [
 	"rotate_sequence", "rotate_pingpong", "rotate_delay",
 	"color_r", "color_g", "color_b", "color_ab",
 	"clash", "active", "clash_ddm", "inherit_when", "release_when", "inherit",
+	"spin_x", "spin_y", "hitbox",
 ]
 
 ## —— 元数据 ——
@@ -235,6 +236,8 @@ var laser_time_bound := false             ## 瞬时类 x/y 是否依赖 t（否=
 
 ## —— 编译后的表达式 ——
 var ex_alpha: DanmakuExpr = null
+var ex_spin_x: DanmakuExpr = null ## 【0.0.9·③ 偏心中心】
+var ex_spin_y: DanmakuExpr = null
 var ex_pass: DanmakuExpr = null
 var ex_speed: DanmakuExpr = null
 var ex_x: DanmakuExpr = null
@@ -250,6 +253,26 @@ var sat_const := 0.0
 var alpha_is_const := false
 var alpha_const := 256.0
 var pass_is_const := false
+## 【0.0.9·③ 偏心中心+特殊判定盒】spin_x/spin_y=旋转-运动中心偏移（像素，默认0,0）；
+## hitbox_name=黑白判定盒图材质名（空=圆判定）
+var spin_x := 0.0
+var spin_x_s := ""
+var spin_y := 0.0
+var spin_y_s := ""
+var hitbox_name := ""
+var _spin_x_expr: DanmakuExpr = null
+var _spin_y_expr: DanmakuExpr = null
+
+## 【0.0.9·③ 编辑器预览刷新钩】（默认空实现——编辑器侧按需覆写调用）
+func bind_preview_refresh(_cb: Callable) -> void:
+	pass
+
+## 【0.0.9·③】偏心中心列求值（整式；出生定值）
+func eval_num_global(col: String, dflt: float) -> float:
+	var e: DanmakuExpr = _spin_x_expr if col == "spin_x" else _spin_y_expr
+	if e == null:
+		return dflt
+	return e.execute([], dflt)
 var pass_const := false
 var ex_lost_if: DanmakuExpr = null
 var ex_asa: DanmakuExpr = null  ## 预警期不透明度比值（表达式）
@@ -607,6 +630,13 @@ func from_csv_row(cells: PackedStringArray) -> Error:
 	is_cannon = _b(cells, idx, "is_cannon", false)
 	var pxo := _num_or_expr(cells, idx, "x_offset", 0.0)
 	x_offset = pxo[0]; x_offset_s = pxo[1]
+	## 【0.0.9·③ 偏心中心+特殊判定盒】spin_x/spin_y=整式像素（默认0,0）；
+	## hitbox=黑白判定盒图材质名（空=圆判定）
+	var spx := _num_or_expr(cells, idx, "spin_x", 0.0)
+	spin_x = spx[0]; spin_x_s = spx[1]
+	var spy := _num_or_expr(cells, idx, "spin_y", 0.0)
+	spin_y = spy[0]; spin_y_s = spy[1]
+	hitbox_name = _s(cells, idx, "hitbox", "")
 	var pyo := _num_or_expr(cells, idx, "y_offset", 0.0)
 	y_offset = pyo[0]; y_offset_s = pyo[1]
 	speed = _s(cells, idx, "speed", "")
@@ -712,6 +742,7 @@ func to_csv_row() -> String:
 		rotate_sequence, rotate_pingpong, (_s_if(rotate_delay_s, rotate_delay)),
 		color_r_s, color_g_s, color_b_s, color_ab_s,
 		clash_s, active_s, clash_ddm_s, inherit_when_s, release_when_s, inherit_s,
+		(_s_if(spin_x_s, spin_x)), (_s_if(spin_y_s, spin_y)), hitbox_name,
 	]
 	var parts: Array[String] = []
 	for v in vals:
@@ -736,6 +767,8 @@ func compile() -> Array[String]:
 	chata_queries.clear()
 	_chq_counter = 0
 	ex_alpha = _compile_one(alpha, errs, "alpha")
+	ex_spin_x = _compile_one(spin_x_s, errs, "spin_x") if spin_x_s != "" else null
+	ex_spin_y = _compile_one(spin_y_s, errs, "spin_y") if spin_y_s != "" else null
 	ex_pass = _compile_one(pass_cond, errs, "pass")
 	ex_speed = _compile_one(speed, errs, "speed")
 	ex_x = _compile_one(x, errs, "x")
