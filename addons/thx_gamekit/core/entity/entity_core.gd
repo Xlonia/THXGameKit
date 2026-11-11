@@ -201,21 +201,3 @@ func _part_from_angle(angle: float) -> int:
 	if absf(angle_difference(angle, PI / 2.0)) <= deg_to_rad(60.0):
 		return PART_MOVE
 	return PART_BODY
-
-## 重伤副作用（getset 检测）：部位归零 → 对应能力失效由 part_ok 即时反映
-func _on_hp_changed() -> void:
-	for i in 3:
-		if hp[i] <= 0:
-			_apply_serious(i)
-
-func _apply_serious(part: int) -> void:
-	## 钩子：玩法插件可覆盖（"重伤叠加""修理"等——文档：重伤会叠加）
-	pass
-
-## 部位判定（上120°武器 / 下120°机动 / 左右60°僚机）
-func _part_from_angle(angle: float) -> int:
-	if absf(angle_difference(angle, -PI / 2.0)) <= deg_to_rad(60.0):
-		return PART_WEAPON
-	if absf(angle_difference(angle, PI / 2.0)) <= deg_to_rad(60.0):
-		return PART_MOVE
-	return PART_BODY
