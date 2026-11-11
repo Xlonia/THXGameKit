@@ -38,6 +38,19 @@ var barrier_broken := false
 var is_elite_private := false    ## 较强杂兵 tag
 var impale_cap: float = INF      ## 穿透伤害上限钩子（道具/玩法插件覆盖）
 var touch_state: Dictionary = {}
+## 【通用资源点数】内核不含"P 点"语义——成员与封顶由玩法插件赋值/覆盖；
+## 成员放内核是因宿主大量 ent.pp 引用（自走棋插件延续使用）
+var pp := 0
+var pp_cap := 500
+
+func add_pp(amount: int) -> int:
+	pp += amount
+	var overflow: int = pp - pp_cap
+	if overflow > 0:
+		pp = pp_cap
+	else:
+		overflow = 0
+	return overflow
 
 ## 巡航/快机（poi 的 to_c 与移动用）
 var cruise_active := false
