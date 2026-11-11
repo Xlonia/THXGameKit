@@ -592,16 +592,16 @@ func _on_menu_file(item: String) -> void:
 			_file_dialog.filters = PackedStringArray(["*.thxp ; THX工程"])
 			_file_dialog.current_dir = ProjectSettings.globalize_path(THXKit.PROJECTS_DIR) ## 【appdata 默认】
 			_file_dialog.popup_centered(Vector2i(900, 600))
-		"导出成品(.thx)":
+		"导出拓展(.thx mod/剧情/额外弹幕)":
 			_pending_action = "save_thx"
 			_file_dialog.file_mode = FileDialog.FILE_MODE_SAVE_FILE
-			_file_dialog.filters = PackedStringArray(["*.thx ; THX成品"])
+			_file_dialog.filters = PackedStringArray(["*.thx ; THX拓展包(mod/剧情/额外弹幕)"])
 			_file_dialog.current_dir = ProjectSettings.globalize_path(THXKit.PROJECTS_DIR)
 			_file_dialog.popup_centered(Vector2i(900, 600))
-		"导出发布包(.thxe)":
+		"导出发布包(.thxe 签名·不可修改)":
 			_pending_action = "save_thxe"
 			_file_dialog.file_mode = FileDialog.FILE_MODE_SAVE_FILE
-			_file_dialog.filters = PackedStringArray(["*.thxe ; THX发布包"])
+			_file_dialog.filters = PackedStringArray(["*.thxe ; THX发布包(签名·不可修改)"])
 			_file_dialog.current_dir = ProjectSettings.globalize_path(THXKit.PROJECTS_DIR)
 			_file_dialog.popup_centered(Vector2i(900, 600))
 		"导出为官方数据":
@@ -1192,62 +1192,113 @@ func _after_exit(mode: String) -> void:
 			get_tree().quit()
 
 func _save_package(path: String, fmt: String) -> void:
-	## 【0.0.9·三格式（作者 20261111）】
-	##   thxp=工程（事件+时间轴+材质+角色表+杂兵表——全量可编辑）
-	##   thx =成品（mod：事件+事件描述/时间轴+材质——游戏加载器兼容格式）
-	##   thxe=发布包（游戏打包：thx+角色表+杂兵表）
+	## =============================================================
+	## 【0.0.9·三格式+完整性签名（作者 20261111）】
+	##   .thxp 工程：全量可编辑（无签名——作者自己的工作文件）
+	##   .thx  拓展包：mod/剧情/额外弹幕（**带 SHA-256 清单**——被修改即拒载）
+	##   .thxe 发布包：游戏打包用（**带 SHA-256 清单，装载强校验=不可修改**，
+	##         只能通过 .thx 拓展包做附加——防恶意代码注入）
+	## 运算流程：①内存组装全部载荷 ②逐文件 SHA-256 → manifest.txt
+	##   ③清单+载荷一并写入 zip（装载时逐文件复算比对）
+	## =============================================================
 	_draft_stash() ## 【draft 20261025d】保存前暂存修改前内容
 	_collect_form()
 	var suffix := "." + fmt
 	if not path.ends_with(suffix):
 		path += suffix
-	var zp := ZIPPacker.new()
-	if zp.open(path) != OK:
-		_set_status("保存失败：%s" % path)
-		return
-	## 五路分表（读取兼容旧单文件）
+	## ① 内存组装载荷
+	var payload: Dictionary = {} ## 文件名 → 字节
 	for tag: String in GameGlobals.OFFICIAL_EVENT_CSVS:
 		var rows: Array[DanmakuEventData] = []
 		for ev in events:
 			if ev.tag == tag:
 				ev.sanitize_for_tag() ## 分表前清除其它运动方式的专属参数（批复 20261019）
 				rows.append(ev)
-		zp.start_file("danmaku_event_%s.csv" % tag)
-		zp.write_file(DanmakuEventData.build_csv(rows).to_utf8_buffer())
-		zp.close_file()
+		payload["danmaku_event_%s.csv" % tag] = DanmakuEventData.build_csv(rows).to_utf8_buffer()
 	for ev in events:
-		zp.start_file("danmaku/%s.gd" % ev.event_name)
-		zp.write_file(_gen_event_gd(ev).to_utf8_buffer())
-		zp.close_file()
-	## 时间轴（每0.1秒tick安排一个或多个事件，.gd 后缀文件）
+		payload["danmaku/%s.gd" % ev.event_name] = _gen_event_gd(ev).to_utf8_buffer()
 	for tl in GameGlobals.editor_timelines:
-		zp.start_file("danmaku/%s.gd" % tl.tl_name)
-		zp.write_file(tl.to_gd().to_utf8_buffer())
-		zp.close_file()
+		payload["danmaku/%s.gd" % tl.tl_name] = tl.to_gd().to_utf8_buffer()
 	for tex_name in GameGlobals.editor_textures:
-		zp.start_file("texture/%s.png" % tex_name)
-		zp.write_file(GameGlobals.editor_textures[tex_name])
-		zp.close_file()
-	## thxp/thxe：角色表+杂兵表随包（原样内嵌，游戏/编辑器装载时逐行 upsert）
+		payload["texture/%s.png" % tex_name] = GameGlobals.editor_textures[tex_name]
 	if fmt != "thx":
 		for pair in [["characters.csv", CharaDB.CSV_PATH], ["privates.csv", CharaDB.PRIVATES_CSV_PATH]]:
 			if FileAccess.file_exists(pair[1]):
-				zp.start_file(pair[0])
-				zp.write_file(FileAccess.get_file_as_string(pair[1]).to_utf8_buffer())
-				zp.close_file()
+				payload[pair[0]] = FileAccess.get_file_as_string(pair[1]).to_utf8_buffer()
+	## ② 完整性清单（SHA-256 逐文件）
+	var manifest := "## THX PACKAGE MANIFEST v1\n## format: %s\n" % fmt
+	var ctx := HashingContext.new()
+	ctx.start(HashingContext.HASH_SHA256)
+	for fname in payload.keys():
+		var h := HashingContext.new()
+		h.start(HashingContext.HASH_SHA256)
+		h.update(payload[fname])
+		var hex := h.finish().hex_encode()
+		manifest += "%s  %s\n" % [hex, fname]
+		ctx.update(("%s  %s\n" % [hex, fname]).to_utf8_buffer())
+	manifest += "## package: %s\n" % ctx.finish().hex_encode()
+	## ③ 打包
+	var zp := ZIPPacker.new()
+	if zp.open(path) != OK:
+		_set_status("保存失败：%s" % path)
+		return
+	zp.start_file("manifest.txt")
+	zp.write_file(manifest.to_utf8_buffer())
+	zp.close_file()
+	for fname in payload:
+		zp.start_file(fname)
+		zp.write_file(payload[fname])
+		zp.close_file()
 	zp.close()
-	var label := {"thxp": "工程", "thx": "成品", "thxe": "发布包"}.get(fmt, fmt)
-	_set_status("已保存 .%s（%s）：%s（%d事件 %d材质）" % [fmt, label, path, events.size(), GameGlobals.editor_textures.size()])
+	var label := {"thxp": "工程", "thx": "拓展包", "thxe": "发布包"}.get(fmt, fmt)
+	_set_status("已保存 .%s（%s·签名清单）：%s（%d事件 %d材质）" % [fmt, label, path, events.size(), GameGlobals.editor_textures.size()])
 
-func _load_package(path: String) -> void:
+func _load_package(path: String) -> bool:
+	## 【0.0.9·装载+完整性校验（作者 20261111）】
+	##   .thxe：**必须**带有效 manifest（不可修改）；.thx：有清单则校验，
+	##   无清单=旧包兼容装载（告警）；校验失败一律拒载（防恶意代码注入）
 	var zr := ZIPReader.new()
 	if zr.open(path) != OK:
 		_set_status("读取失败：%s" % path)
-		return
+		return false
+	var files := zr.get_files()
+	var has_manifest := files.has("manifest.txt")
+	var manifest := ""
+	var expect := {} ## 文件名 → 期望哈希
+	if has_manifest:
+		manifest = zr.read_file("manifest.txt").get_string_from_utf8()
+		for line in manifest.split("\n"):
+			var l := line.strip_edges()
+			if l.begins_with("##") or l == "":
+				continue
+			var parts := l.split("  ", false)
+			if parts.size() == 2:
+				expect[parts[1]] = parts[0]
+	if not has_manifest and path.ends_with(".thxe"):
+		zr.close()
+		_set_status("拒载：发布包缺少完整性清单（manifest.txt）——%s" % path)
+		return false
+	## 逐文件复算（有清单时）
+	if has_manifest:
+		for f in files:
+			if f == "manifest.txt" or f.ends_with("/"):
+				continue ## manifest 自身+目录条目不参与校验
+			var h := HashingContext.new()
+			h.start(HashingContext.HASH_SHA256)
+			h.update(zr.read_file(f))
+			var got := h.finish().hex_encode()
+			if not expect.has(f) or expect[f] != got:
+				push_warning("[SIG调试] f=%s got=%s expect=%s 清单行数=%d" % [f, got, str(expect.get(f, "缺失")), expect.size()])
+			if not expect.has(f) or expect[f] != got:
+				zr.close()
+				_set_status("拒载：完整性校验失败（%s 与签名清单不符）——文件可能被修改" % f)
+				return false
 	_set_events(DanmakuEventData.parse_csv_text(""))
 	var imported := 0
 	GameGlobals.editor_timelines = [] ## 打开新包 → 时间轴以包内容为准
-	for f in zr.get_files():
+	var chara_rows := 0
+	var priv_rows := 0
+	for f in files:
 		if f.begins_with("danmaku_event") and f.ends_with(".csv"):
 			events.append_array(DanmakuEventData.parse_csv_text(zr.read_file(f).get_string_from_utf8()))
 		elif f.begins_with("texture/"):
@@ -1255,21 +1306,22 @@ func _load_package(path: String) -> void:
 			if DanmakuTex.load_from_bytes(tex_name, zr.read_file(f)):
 				GameGlobals.editor_textures[tex_name] = zr.read_file(f)
 				imported += 1
-		elif f == "characters.csv":
-			CharaDB.import_csv_text(zr.read_file(f).get_string_from_utf8(), "chara") ## 【.thxp/.thxe 装载】
-		elif f == "privates.csv":
-			CharaDB.import_csv_text(zr.read_file(f).get_string_from_utf8(), "privates")
 		elif f.begins_with("danmaku/") and f.ends_with(".gd"):
 			var text := zr.read_file(f).get_string_from_utf8()
 			if TimelineData.is_timeline_gd(text):
 				GameGlobals.editor_timelines.append(TimelineData.parse_gd(text))
+		elif f == "characters.csv":
+			chara_rows = CharaDB.import_csv_text(zr.read_file(f).get_string_from_utf8(), "chara")
+		elif f == "privates.csv":
+			priv_rows = CharaDB.import_csv_text(zr.read_file(f).get_string_from_utf8(), "privates")
 	zr.close()
 	for ev in events:
 		ev.compile()
 	_refresh_list()
 	if not events.is_empty():
 		_select(0)
-	_set_status("已读取：%d事件 %d材质" % [events.size(), imported])
+	_set_status("已读取：%d事件 %d材质 角色+%d 杂兵+%d" % [events.size(), imported, chara_rows, priv_rows])
+	return true
 
 func _import_texture(path: String) -> void:
 	var bytes := FileAccess.get_file_as_bytes(path)

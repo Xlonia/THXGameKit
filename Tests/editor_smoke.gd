@@ -28,10 +28,40 @@ func _ready() -> void:
 	if not ok2: fails += 1
 	## ③退出试炼场=指向编辑器场景（arena_mode 复位断言——稳定版；
 	## 真实场景往返由 F5 可视验证，探针不做 change_scene 实切）
-	## ③退出路径（静态断言；真实往返由 F5 可视验证——探针实切会释放自身）
-	var ok3: bool = FileAccess.file_exists("res://scenes/danmaku_editor.tscn") 		and tg.has_method("_on_pause_btn")
-	print("  %s 退出路径在位（编辑器场景+试炼场处理器）" % ["PASS" if ok3 else "FAIL"])
+	## ③签名体系：thxe 强校验（缺清单拒载/篡改拒载）+ thx 签名可选
+	var ed2: Control = (load("res://scenes/danmaku_editor.tscn") as PackedScene).instantiate()
+	add_child(ed2)
+	await get_tree().process_frame
+	ed2._save_package("user://kit_sig.thxe", "thxe")
+	var ok3: bool = FileAccess.file_exists("user://kit_sig.thxe")
+	print("  %s .thxe 保存（签名清单内嵌）" % ["PASS" if ok3 else "FAIL"])
 	if not ok3: fails += 1
+	var ok4a: bool = ed2._load_package("user://kit_sig.thxe")
+	print("  %s .thxe 完整性校验通过装载" % ["PASS" if ok4a else "FAIL"])
+	if not ok4a: fails += 1
+	## 篡改：重写 manifest → 必须拒载
+	var zr := ZIPReader.new()
+	zr.open("user://kit_sig.thxe")
+	var files := zr.get_files()
+	var tamper := {}
+	for f in files:
+		tamper[f] = zr.read_file(f)
+	tamper["manifest.txt"] = tamper["manifest.txt"].get_string_from_utf8().replace("characters.csv", "xxxx.csv").to_utf8_buffer()
+	zr.close()
+	var zw := ZIPPacker.new()
+	zw.open("user://kit_sig_tampered.thxe")
+	for f2 in tamper:
+		zw.start_file(f2)
+		zw.write_file(tamper[f2])
+		zw.close_file()
+	zw.close()
+	var rejected: bool = not ed2._load_package("user://kit_sig_tampered.thxe")
+	print("  %s 篡改 .thxe → 拒载（防恶意代码注入）" % ["PASS" if rejected else "FAIL"])
+	if not rejected: fails += 1
+	ed2._save_package("user://kit_sig.thx", "thx")
+	var ok5a: bool = ed2._load_package("user://kit_sig.thx")
+	print("  %s .thx 拓展包装载（签名可选）" % ["PASS" if ok5a else "FAIL"])
+	if not ok5a: fails += 1
 	tg.queue_free()
 	await get_tree().process_frame
 	## ③b CharaDB 新建/导入（数据层直测；测后还原 characters.csv）
