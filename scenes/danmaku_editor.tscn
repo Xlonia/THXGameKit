@@ -1,6 +1,6 @@
 [gd_scene load_steps=2 format=3 uid="uid://b2kiteditor01"]
 
-[ext_resource type="Script" path="res://../addons/thx_gamekit/editor/danmaku_editor.gd" id="1"]
+[ext_resource type="Script" path="res://addons/thx_gamekit/editor/danmaku_editor.gd" id="1"]
 
 [node name="DanmakuEditor" type="Control"]
 anchors_preset = 15
