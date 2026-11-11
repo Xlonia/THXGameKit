@@ -1,2 +1,5 @@
 .godot/
 *.tmp
+
+# Godot CSV 本地化自动产物（characters.*.translation 等——导入期再生）
+addons/thx_gamekit/data/*.translation
