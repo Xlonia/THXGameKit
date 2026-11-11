@@ -10,9 +10,19 @@ extends RefCounted
 ## privates.csv：杂兵（Name,Normal,Determine,Defend,NameZH/JP/EN）
 ## =============================================================
 
-const CSV_PATH := "res://addons/thx_gamekit/data/characters.csv" ## 【内核化】
-const ENEMY_CSV_PATH := "res://addons/thx_gamekit/data/enemy.csv" ## 【内核化】
-const PRIVATES_CSV_PATH := "res://addons/thx_gamekit/data/privates.csv" ## 【内核化】
+## 【0.0.9·挂载点无关】路径=DATA_BASE（THXKit 推送）+ 宿主覆盖（THX75
+## 指向 gameAssetBase 自己的数据）——静态变量而非 const（可被宿主重定向）
+static var DATA_BASE := "res://addons/thx_gamekit/data"
+static var CSV_OVERRIDE := ""
+static var ENEMY_OVERRIDE := ""
+static var PRIVATES_OVERRIDE := ""
+
+static func csv_path() -> String:
+	return CSV_OVERRIDE if CSV_OVERRIDE != "" else DATA_BASE.path_join("characters.csv")
+static func enemy_path() -> String:
+	return ENEMY_OVERRIDE if ENEMY_OVERRIDE != "" else DATA_BASE.path_join("enemy.csv")
+static func privates_path() -> String:
+	return PRIVATES_OVERRIDE if PRIVATES_OVERRIDE != "" else DATA_BASE.path_join("privates.csv")
 
 const INT_COLS := ["Cruise", "Normal", "Determine", "Defend", "Mag", "Phy", "ID", "Team", "Main_Cd", "Sub_Cd"]
 const FLOAT_COLS := ["Weapon_Muti", "Char_Raid", "Char_Allfire", "Char_Blitz", "Char_Cover", "Char_Elast", "Char_Delay", "Char_Feint",
@@ -21,15 +31,15 @@ const EXPR_COLS := ["main_y", "sub_x", "sub_y", "main_poi_x", "main_poi_y", "sub
 const POI_VARS: PackedStringArray = ["wpcs", "to_c"]
 
 static func load_all() -> Array[Dictionary]:
-	return _load_csv(CSV_PATH, true)
+	return _load_csv(csv_path(), true)
 
 static func load_enemies() -> Array[Dictionary]:
-	return _load_csv(ENEMY_CSV_PATH, false)
+	return _load_csv(enemy_path(), false)
 
 static var _priv_cache: Array[Dictionary] = [] ## 【0.0.9·审计C2 20261108】privates.csv 重复读盘缓存（建队 10 次+每增援）
 static func load_privates() -> Array[Dictionary]:
 	if _priv_cache.is_empty():
-		_priv_cache = _load_csv(PRIVATES_CSV_PATH, false)
+		_priv_cache = _load_csv(privates_path(), false)
 	return _priv_cache
 
 static func _load_csv(path: String, full: bool) -> Array[Dictionary]:
@@ -101,9 +111,9 @@ static func _cell_or_default(row: Dictionary, key: String) -> String:
 ## 【20261003】写回单个角色行（编辑器角色页）：仅替换该行，其余原样保留；
 ## 字段值经 CSV 转义（poi 表达式可含逗号）。成功返回 true。
 static func save_row(chara_name: String, row: Dictionary) -> bool:
-	var f := FileAccess.open(CSV_PATH, FileAccess.READ)
+	var f := FileAccess.open(csv_path(), FileAccess.READ)
 	if f == null:
-		push_error("[CharaDB] 无法读取：%s（若为导出版运行：请检查导出预设 include 是否包含 *.csv）" % CSV_PATH)
+		push_error("[CharaDB] 无法读取：%s（若为导出版运行：请检查导出预设 include 是否包含 *.csv）" % csv_path())
 		return false
 	var header_line := ""
 	var header: PackedStringArray = []
@@ -153,7 +163,7 @@ static func save_row(chara_name: String, row: Dictionary) -> bool:
 	body[target] = ",".join(new_cells)
 	while not body.is_empty() and body[body.size() - 1].strip_edges().is_empty():
 		body.pop_back() ## get_line 的 eof 特性会多出一个尾随空行，写回前剥掉
-	var w := FileAccess.open(CSV_PATH, FileAccess.WRITE)
+	var w := FileAccess.open(csv_path(), FileAccess.WRITE)
 	if w == null:
 		return false
 	w.store_line(header_line) ## 【修复 20261003】表头必须写回（旧版丢失 → 全表变称号）
@@ -168,7 +178,7 @@ static func save_row(chara_name: String, row: Dictionary) -> bool:
 static func new_character(chara_name: String) -> bool:
 	if not get_by_name(chara_name).is_empty():
 		return false ## 已存在
-	return _append_row(CSV_PATH, {"Name": chara_name, "NameZH": chara_name,
+	return _append_row(csv_path(), {"Name": chara_name, "NameZH": chara_name,
 		"NameJP": chara_name, "NameEN": chara_name})
 
 ## 【0.0.9·内核化 20261111】新建杂兵（privates.csv；三语名=键名，其余默认）
@@ -176,7 +186,7 @@ static func new_character(chara_name: String) -> bool:
 static func new_private(private_name: String) -> bool:
 	if not get_private_by_name(private_name).is_empty():
 		return false
-	return _append_row(PRIVATES_CSV_PATH, {"Name": private_name, "NameZH": private_name,
+	return _append_row(privates_path(), {"Name": private_name, "NameZH": private_name,
 		"NameJP": private_name, "NameEN": private_name})
 
 ## 【0.0.9·内核化 20261111】行追加（.thxp/.thxe 装载与新建共用）：
@@ -240,13 +250,13 @@ static func import_csv_text(text: String, kind: String) -> int:
 			if not get_by_name(nm).is_empty():
 				if save_row(nm, row):
 					imported += 1
-			elif _append_row(CSV_PATH, row):
+			elif _append_row(csv_path(), row):
 				imported += 1
 		else:
 			if not get_private_by_name(nm).is_empty():
 				if save_private_row(nm, row):
 					imported += 1
-			elif _append_row(PRIVATES_CSV_PATH, row):
+			elif _append_row(privates_path(), row):
 				imported += 1
 	return imported
 
@@ -265,9 +275,9 @@ static func get_by_name(chara_name: String) -> Dictionary:
 ## 【杂兵编辑+弹幕分配 20261020】私兵行保存（编辑器杂兵页用；表头自愈含 shoot_evs）
 const PRIVATES_REQUIRED := ["ShootCd", "shoot_evs"]
 static func save_private_row(private_name: String, row: Dictionary) -> bool:
-	var f := FileAccess.open(PRIVATES_CSV_PATH, FileAccess.READ)
+	var f := FileAccess.open(privates_path(), FileAccess.READ)
 	if f == null:
-		push_error("[CharaDB] 无法读取：%s" % PRIVATES_CSV_PATH)
+		push_error("[CharaDB] 无法读取：%s" % privates_path())
 		return false
 	var header_line := ""
 	var header: PackedStringArray = []
@@ -311,9 +321,9 @@ static func save_private_row(private_name: String, row: Dictionary) -> bool:
 		body[target] = line2
 	else:
 		body.append(line2)
-	var w := FileAccess.open(PRIVATES_CSV_PATH, FileAccess.WRITE)
+	var w := FileAccess.open(privates_path(), FileAccess.WRITE)
 	if w == null:
-		push_error("[CharaDB] 无法写入：%s" % PRIVATES_CSV_PATH)
+		push_error("[CharaDB] 无法写入：%s" % privates_path())
 		return false
 	w.store_string(header_line + "
 ")

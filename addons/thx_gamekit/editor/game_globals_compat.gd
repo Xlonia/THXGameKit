@@ -8,14 +8,8 @@ extends Node
 ## 无意义 diff；内核化以"宿主接口"名义保留此名（README 已注记）。
 ## =============================================================
 
-const OFFICIAL_EVENT_CSV := "res://addons/thx_gamekit/data/danmaku_event.csv"
-const OFFICIAL_EVENT_CSVS: Dictionary = {
-	DanmakuEventData.TAG_REGULAR: "res://addons/thx_gamekit/data/danmaku_event_regular.csv",
-	DanmakuEventData.TAG_PHYSICAL: "res://addons/thx_gamekit/data/danmaku_event_physical.csv",
-	DanmakuEventData.TAG_FUNCTED: "res://addons/thx_gamekit/data/danmaku_event_functed.csv",
-	DanmakuEventData.TAG_LASER: "res://addons/thx_gamekit/data/danmaku_event_laser.csv",
-	DanmakuEventData.TAG_NODES: "res://addons/thx_gamekit/data/danmaku_event_nodes.csv",
-}
+var OFFICIAL_EVENT_CSVS: Dictionary:
+	get: return THXKit.official_csvs()
 
 var editor_events: Array:
 	get: return THXKit.editor_events

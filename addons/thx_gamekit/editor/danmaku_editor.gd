@@ -1222,7 +1222,7 @@ func _save_package(path: String, fmt: String) -> void:
 	for tex_name in GameGlobals.editor_textures:
 		payload["texture/%s.png" % tex_name] = GameGlobals.editor_textures[tex_name]
 	if fmt != "thx":
-		for pair in [["characters.csv", CharaDB.CSV_PATH], ["privates.csv", CharaDB.PRIVATES_CSV_PATH]]:
+		for pair in [["characters.csv", CharaDB.csv_path()], ["privates.csv", CharaDB.privates_path()]]:
 			if FileAccess.file_exists(pair[1]):
 				payload[pair[0]] = FileAccess.get_file_as_string(pair[1]).to_utf8_buffer()
 	## ② 完整性清单（SHA-256 逐文件）

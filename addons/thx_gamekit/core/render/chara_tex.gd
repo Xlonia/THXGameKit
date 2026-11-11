@@ -13,6 +13,7 @@ extends RefCounted
 ## =============================================================
 static var _cache: Dictionary = {}    ## key -> Dictionary(tex/frames/fw/fh/horiz) 或 {}=无
 static var _dir_scanned := false
+static var DATA_BASE := "" ## 【内核化】由 THXKit 推送（宿主可覆盖）
 static var _stem_map: Dictionary = {} ## 小写文件名主干 -> 路径
 
 static func _scan_dir() -> void:

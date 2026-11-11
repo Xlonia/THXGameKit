@@ -21,16 +21,22 @@ extends Node
 
 ## 【CSV 拆分（作者批复 2026-10-03）】每种运行方式一份 csv；
 ## 旧的单文件 danmaku_event.csv 兼容读取（老 mod/官方旧包仍可用）。
-const OFFICIAL_EVENT_CSV := "res://addons/thx_gamekit/data/danmaku_event.csv"
-const OFFICIAL_EVENT_CSVS: Dictionary = {
-	DanmakuEventData.TAG_REGULAR: "res://addons/thx_gamekit/data/danmaku_event_regular.csv",
-	DanmakuEventData.TAG_PHYSICAL: "res://addons/thx_gamekit/data/danmaku_event_physical.csv",
-	DanmakuEventData.TAG_FUNCTED: "res://addons/thx_gamekit/data/danmaku_event_functed.csv",
-	DanmakuEventData.TAG_LASER: "res://addons/thx_gamekit/data/danmaku_event_laser.csv",
-	DanmakuEventData.TAG_NODES: "res://addons/thx_gamekit/data/danmaku_event_nodes.csv",
-}
-const TIMELINES_DIR := "res://addons/thx_gamekit/data/timelines"
-const PROJECTS_DIR := "user://thx_gamekit" ## 【appdata 默认】.thxp/.thx/.thxe 存放处（作者 20261111）
+## 【0.0.9·挂载点无关 20261111】数据路径从本脚本位置推导（submodule 可挂
+## 任意目录）；宿主（游戏）可经 *_OVERRIDE 覆盖到自己的数据目录
+var DATA_DIR := ""      ## .../data（官方表示例/材质/时间轴）
+var SCENES_DIR := ""    ## .../scenes（试炼场/编辑器场景）
+var PROJECTS_DIR := "user://thx_gamekit" ## 【appdata 默认】.thxp/.thx/.thxe 存放处（作者 20261111）
+
+func _resolve_paths() -> void:
+	## core/kit.gd → core → addon → 仓库根 → data/scenes
+	var core_dir: String = get_script().resource_path.get_base_dir()
+	var addon_dir: String = core_dir.path_join("..")
+	DATA_DIR = addon_dir.path_join("data").simplify_path()
+	SCENES_DIR = addon_dir.path_join("scenes").simplify_path()
+	## 推送静态基准（chara_db/danmaku_tex/chara_tex 为全静态类）
+	CharaDB.DATA_BASE = DATA_DIR
+	DanmakuTex.DATA_BASE = DATA_DIR.path_join("textures/danmaku16pxs").simplify_path()
+	CharaTex.DATA_BASE = DATA_DIR.path_join("textures/chars").simplify_path()
 const MOD_DIRS: Array[String] = ["res://mods", "user://mods"]
 
 ## —— 弹幕事件池 ——
@@ -44,20 +50,21 @@ var official_timelines: Dictionary = {} ## 官方时间轴注册表（名→Time
 var mod_timelines: Dictionary = {}   ## mod 时间轴注册表（名→TimelineData）
 
 func _ready() -> void:
+	_resolve_paths()
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(PROJECTS_DIR))
 	_load_official()
 	_load_official_timelines()
 
 ## 官方时间轴装载：data/timelines/*.gd（TimelineData.parse_gd 文本格式）
 func _load_official_timelines() -> void:
-	var dir := DirAccess.open(TIMELINES_DIR)
+	var dir := DirAccess.open(DATA_DIR.path_join("timelines"))
 	if dir == null:
 		return
 	dir.list_dir_begin()
 	var f := dir.get_next()
 	while f != "":
 		if f.ends_with(".gd"):
-			var tl := TimelineData.parse_gd(FileAccess.get_file_as_string(TIMELINES_DIR.path_join(f)))
+			var tl := TimelineData.parse_gd(FileAccess.get_file_as_string(DATA_DIR.path_join("timelines").path_join(f)))
 			if not official_timelines.has(tl.tl_name):
 				official_timelines[tl.tl_name] = tl
 		f = dir.get_next()
@@ -65,7 +72,8 @@ func _load_official_timelines() -> void:
 
 func _load_official() -> void:
 	var loaded := false
-	for path in OFFICIAL_EVENT_CSVS.values():
+	var csvs := _official_csvs()
+	for path in csvs.values():
 		if not FileAccess.file_exists(path):
 			continue
 		loaded = true
@@ -79,18 +87,27 @@ func _load_official() -> void:
 				official_events[ev.event_name] = ev
 	if loaded:
 		return
-	if not FileAccess.file_exists(OFFICIAL_EVENT_CSV):
+	if not FileAccess.file_exists(DATA_DIR.path_join("danmaku_event.csv")):
 		return
-	var text := FileAccess.get_file_as_string(OFFICIAL_EVENT_CSV)
+	var text := FileAccess.get_file_as_string(DATA_DIR.path_join("danmaku_event.csv"))
 	for ev in DanmakuEventData.parse_csv_text(text):
 		ev.compile()
 		official_events[ev.event_name] = ev
 
 ## 【根治 20261020】编辑器工作集 → 官方五分表 静默同步（合并式：工作集优先
 ## 同名覆盖，不清除分表既有事件——防数据损失）
+func _official_csvs() -> Dictionary:
+	return {
+		DanmakuEventData.TAG_REGULAR: DATA_DIR.path_join("danmaku_event_regular.csv"),
+		DanmakuEventData.TAG_PHYSICAL: DATA_DIR.path_join("danmaku_event_physical.csv"),
+		DanmakuEventData.TAG_FUNCTED: DATA_DIR.path_join("danmaku_event_functed.csv"),
+		DanmakuEventData.TAG_LASER: DATA_DIR.path_join("danmaku_event_laser.csv"),
+		DanmakuEventData.TAG_NODES: DATA_DIR.path_join("danmaku_event_nodes.csv"),
+	}
+
 func sync_official_events(events: Array, exclude_names: PackedStringArray = PackedStringArray()) -> void:
 	var existing: Array[DanmakuEventData] = []
-	for path in OFFICIAL_EVENT_CSVS.values():
+	for path in _official_csvs().values():
 		if FileAccess.file_exists(path):
 			existing.append_array(DanmakuEventData.parse_csv_text(FileAccess.get_file_as_string(path)))
 	var merged := {}
@@ -108,8 +125,9 @@ func sync_official_events(events: Array, exclude_names: PackedStringArray = Pack
 		if not by_tag.has(ev.tag):
 			by_tag[ev.tag] = []
 		by_tag[ev.tag].append(ev)
-	for tag: String in OFFICIAL_EVENT_CSVS:
-		var f := FileAccess.open(String(OFFICIAL_EVENT_CSVS[tag]), FileAccess.WRITE)
+	var csvs2 := _official_csvs()
+	for tag: String in csvs2:
+		var f := FileAccess.open(String(csvs2[tag]), FileAccess.WRITE)
 		if f == null:
 			continue
 		var lines: Array[String] = [",".join(DanmakuEventData.CSV_HEADER)]
@@ -120,8 +138,8 @@ func sync_official_events(events: Array, exclude_names: PackedStringArray = Pack
 
 ## 【20261020】时间轴落盘（官方库存 data/timelines/）
 func save_timeline_gd(tl: TimelineData) -> void:
-	DirAccess.make_dir_recursive_absolute(TIMELINES_DIR)
-	var f := FileAccess.open(TIMELINES_DIR + "/" + tl.tl_name + ".gd", FileAccess.WRITE)
+	DirAccess.make_dir_recursive_absolute(DATA_DIR.path_join("timelines"))
+	var f := FileAccess.open(DATA_DIR.path_join("timelines").path_join(tl.tl_name + ".gd"), FileAccess.WRITE)
 	if f == null:
 		push_warning("[THXKit] 时间轴写入失败: " + tl.tl_name)
 		return
@@ -171,6 +189,10 @@ func load_thx(path: String) -> Array[String]:
 			DanmakuTex.load_from_bytes(tex_name, zr.read_file(f))
 	zr.close()
 	return names
+
+## 【挂载点无关】官方表路径（兼容层/宿主读取用）
+func official_csvs() -> Dictionary:
+	return _official_csvs()
 
 ## 事件查询（mod 覆盖官方）
 func get_event(event_name: String) -> DanmakuEventData:
