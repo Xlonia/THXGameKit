@@ -254,7 +254,9 @@ var alpha_is_const := false
 var alpha_const := 256.0
 var pass_is_const := false
 ## 【0.0.9·③ 偏心中心+特殊判定盒】spin_x/spin_y=旋转-运动中心偏移（像素，默认0,0）；
-## hitbox_name=黑白判定盒图材质名（空=圆判定）
+## hitbox_name=黑白判定盒图材质名（空=圆判定）；"同显示"=判定形状直接用弹幕材质
+## （作者 20261112：判定盒与材质绑定，省做单独判定盒图；白像素=有判定）
+const HITBOX_SAME := "同显示"
 var spin_x := 0.0
 var spin_x_s := ""
 var spin_y := 0.0
@@ -263,9 +265,12 @@ var hitbox_name := ""
 var _spin_x_expr: DanmakuExpr = null
 var _spin_y_expr: DanmakuExpr = null
 
-## 【0.0.9·③ 编辑器预览刷新钩】（默认空实现——编辑器侧按需覆写调用）
-func bind_preview_refresh(_cb: Callable) -> void:
-	pass
+## 【0.0.9·③ 编辑器展示刷新钩（20261112 实做——原 pass 空实现=改下拉后
+## 展示卡永不刷新的故障根因之一）】opt_tex 改动时编辑器手动调用
+var preview_refresh_cb: Callable = Callable()
+
+func bind_preview_refresh(cb: Callable) -> void:
+	preview_refresh_cb = cb
 
 ## 【0.0.9·③】偏心中心列求值（整式；出生定值）
 func eval_num_global(col: String, dflt: float) -> float:

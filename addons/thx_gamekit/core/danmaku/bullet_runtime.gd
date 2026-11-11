@@ -228,7 +228,10 @@ func setup(event: DanmakuEventData, spawn_origin: Vector2, bullet_side: int, src
 	draw_radius = tex_half * ev.danmaku_size_muti
 	## 【0.0.9·③】偏心中心：定值求值（数字/常量式→静态跳过；表达式求值一次定格）
 	spin_offset = Vector2(ev.eval_num_global("spin_x", 0.0), ev.eval_num_global("spin_y", 0.0))
-	if spin_offset != Vector2.ZERO:
+	## 【判定盒独立于偏心 20261112】旧版挂在 spin_offset != ZERO 分支下——
+	## 零偏心+有判定盒的弹永远不载入位图（判定盒显示故障根因之三）；
+	## 载入函数内部自带 开关+盒名 双门（空名/开关关=零成本）
+	if ev.hitbox_name.strip_edges() != "":
 		_special_hitbox_load()
 	## 【量纲迁移 20261019】saturation/hue 为 0~256 整数量纲（类型一览.csv）；
 	## hue 相对 color 基础色相偏移：H = fposmod(base_hue + hue/256, 1)
@@ -1482,10 +1485,16 @@ func spin_offcenter() -> bool:
 
 ## 【0.0.9·③ 特殊判定盒加载】材质黑白图 → 1bit 判定盒（白=判定）
 ## 仅全局开关（special_hitbox_enabled）开启时加载；否则空=圆判定
+## 【同显示 20261112（作者）】hitbox_name="同显示"=判定形状直接用弹幕材质
+## （黑白阈值同下：白像素=有判定）——判定盒与材质绑定，省做单独判定盒图
 func _special_hitbox_load() -> void:
 	if not special_hitbox_enabled or ev.hitbox_name.strip_edges() == "":
 		return
-	var tex := DanmakuTex.resolve(ev.hitbox_name)
+	var tex: Texture2D
+	if ev.hitbox_name == DanmakuEventData.HITBOX_SAME:
+		tex = DanmakuTex.resolve(ev.texture) ## 同显示=弹幕材质本身
+	else:
+		tex = DanmakuTex.resolve(ev.hitbox_name)
 	if tex == null or tex.get_image() == null:
 		return
 	var img := tex.get_image()

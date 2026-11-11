@@ -144,6 +144,11 @@ var _pages: Dictionary = {}
 var _status: Label
 var _file_dialog: FileDialog
 var _pending_action := ""
+var _exit_panel: PanelContainer = null ## 自绘退出确认面板（20261112 换 ConfirmationDialog）
+var _project_path := "" ## 当前 .thxp 工程路径（保存/退出存取用；空=未保存过）
+## 【③-B 顶栏标签页 20261112】编辑器/设置/探针 三页（设置/探针懒建）
+var _page_holder: VBoxContainer = null
+var _top_pages: Dictionary = {} ## key->Control（editor=body；settings/probe 懒建）
 var _expr_insert_target: LineEdit = null
 var _tool_build: Dictionary = {} ## 工具浮窗当前组装（lambda 捕获共享）
 var _tool_widgets: Array = [] ## 工具浮窗参数控件
@@ -296,7 +301,11 @@ func _build_privates_page() -> Control:
 
 func _notification(what: int) -> void:
 	if what == NOTIFICATION_EXIT_TREE and not events.is_empty():
-		GameGlobals.sync_official_events(events) ## 退出编辑器兜底落盘
+		## 【裸本体防污染 20261112】兜底落盘=官方表写回，仅工程环境执行——
+		## 裸本体写内核 data/ 会把工作集混进内核官方库（作者克隆仓库即被污染）；
+		## 裸本体工作集经 THXKit.editor_events 内存保留（试炼场往返不丢）
+		if _is_project_env():
+			GameGlobals.sync_official_events(events) ## 退出编辑器兜底落盘
 
 func _ready() -> void:
 	_build_ui()
@@ -327,16 +336,42 @@ func _build_ui() -> void:
 	var menubar := _build_menubar()
 	menubar.set_anchors_and_offsets_preset(Control.PRESET_TOP_WIDE)
 	add_child(menubar)
+	## 【③-B 顶栏标签页 20261112（作者：进一步做③）】编辑器｜设置｜探针 三页签：
+	##   编辑器=现有全部；设置=存档与游戏格式（.thxp/draft）+内容文件夹（③-B 归入）；
+	##   探针=编辑模式调试数据（③-C 框架：事件/材质/编译统计，切页即刷新）
+	var top_tabs := HBoxContainer.new()
+	top_tabs.anchor_left = 0.0
+	top_tabs.anchor_right = 1.0
+	top_tabs.anchor_top = 0.0
+	top_tabs.anchor_bottom = 0.0
+	top_tabs.offset_top = 30
+	top_tabs.offset_bottom = 56
+	add_child(top_tabs)
+	var tab_group := ButtonGroup.new()
+	_page_holder = VBoxContainer.new()
+	_page_holder.anchor_left = 0.0
+	_page_holder.anchor_right = 1.0
+	_page_holder.anchor_top = 0.0
+	_page_holder.anchor_bottom = 1.0
+	_page_holder.offset_top = 58
+	_page_holder.offset_bottom = -52
+	add_child(_page_holder)
+	for tp in [["editor", "编辑器"], ["settings", "设置"], ["probe", "探针"]]:
+		var tb := Button.new()
+		tb.text = tp[1]
+		tb.toggle_mode = true
+		tb.button_group = tab_group
+		tb.focus_mode = Control.FOCUS_NONE
+		tb.pressed.connect(_show_top_page.bind(tp[0]))
+		top_tabs.add_child(tb)
+		if tp[0] == "editor":
+			tb.button_pressed = true
+	## 编辑器页=原有 body（挂 _page_holder 内；设置/探针页懒建）
 	var body := HSplitContainer.new()
-	body.anchor_left = 0.0
-	body.anchor_right = 1.0
-	body.anchor_top = 0.0
-	body.anchor_bottom = 1.0
-	body.offset_left = 4
-	body.offset_right = -4
-	body.offset_top = 34
-	body.offset_bottom = -52
-	add_child(body)
+	body.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	body.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	_page_holder.add_child(body)
+	_top_pages = {"editor": body}
 	## 左：主页面签 + 素材栏
 	var left := VBoxContainer.new()
 	left.custom_minimum_size = Vector2(240, 0)
@@ -397,11 +432,11 @@ func _build_ui() -> void:
 	_status.custom_minimum_size = Vector2(0, 40)
 	bottom.add_child(_status)
 	var preview_b := Button.new()
-	preview_b.text = "▶ 试炼场预览"
+	preview_b.text = "▶ 试炼场"
 	preview_b.pressed.connect(_on_preview)
 	bottom.add_child(preview_b)
 	var show_b := Button.new()
-	show_b.text = "弹幕显示浮窗(Z发射)"
+	show_b.text = "弹幕预览(Z发射)"
 	show_b.pressed.connect(_open_preview_window)
 	bottom.add_child(show_b)
 	var op_b := Button.new()
@@ -418,6 +453,182 @@ func _build_ui() -> void:
 	_file_dialog.use_native_dialog = true
 	_file_dialog.file_selected.connect(_on_file_selected)
 	_dialog_reparent(_file_dialog, Vector2i(), false) ## 仅挂载，不弹出（修复：开屏弹保存窗）
+
+## —— 顶栏标签页切换（编辑器/设置/探针；设置探针懒建）——
+func _show_top_page(key: String) -> void:
+	if key == "settings" and not _top_pages.has("settings"):
+		_top_pages["settings"] = _build_settings_page()
+	if key == "probe" and not _top_pages.has("probe"):
+		_top_pages["probe"] = _build_probe_page()
+	for k in _top_pages:
+		_top_pages[k].visible = (k == key)
+	if key == "probe":
+		_refresh_probe()
+
+## —— 设置页（③-B：存档与游戏格式 + 内容文件夹配置）——
+func _build_settings_page() -> Control:
+	var sc := ScrollContainer.new()
+	sc.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	sc.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	sc.name = "SettingsPage"
+	var box := VBoxContainer.new()
+	box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	box.add_theme_constant_override("separation", 10)
+	sc.add_child(box)
+	_page_holder.add_child(sc)
+	sc.visible = false
+	## 存档与游戏格式（作者 20261112：保存→对应 .thxp；draft 机制保留）
+	var l1 := Label.new()
+	l1.text = "【存档与游戏格式】"
+	l1.add_theme_font_size_override("font_size", 16)
+	box.add_child(l1)
+	var proj_l := Label.new()
+	proj_l.text = "当前工程：%s" % (_project_path if _project_path != "" else "（未保存——退出保存时存入 PROJECTS_DIR/untitled.thxp）")
+	proj_l.name = "ProjectPath"
+	box.add_child(proj_l)
+	var fmt_l := Label.new()
+	fmt_l.text = "格式：.thxp=工程（全量可编辑）｜.thx=拓展包（SHA-256 签名）｜.thxe=发布包（强校验）｜官方数据写回=仅游戏工程环境（gameAssetBase 可写）"
+	fmt_l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	box.add_child(fmt_l)
+	var draft_l := Label.new()
+	draft_l.text = "draft.csv（user://thx_gamekit/draft.csv）=每次保存/导出前的还原点；「不保存退出」按其回滚。"
+	box.add_child(draft_l)
+	var srow := HBoxContainer.new()
+	box.add_child(srow)
+	var save_b := Button.new()
+	save_b.text = "保存当前工程(.thxp)"
+	save_b.pressed.connect(func():
+		_collect_form()
+		var p := _project_path if _project_path != "" else String(THXKit.PROJECTS_DIR).path_join("untitled.thxp")
+		_save_package(p, "thxp")
+		_project_path = p
+		(proj_l as Label).text = "当前工程：%s" % p
+		_set_status("已保存工程：%s" % p))
+	srow.add_child(save_b)
+	var reload_b := Button.new()
+	reload_b.text = "重扫内容文件夹"
+	reload_b.pressed.connect(func():
+		DanmakuTex.invalidate_scan()
+		CharaTex.invalidate_all()
+		_refresh_assets()
+		_set_status("内容文件夹已重扫（材质/角色贴图缓存已失效）"))
+	srow.add_child(reload_b)
+	## 内容文件夹配置（③-B 归入；与标题画面选项页同数据源 THXKit.content_dirs）
+	var l2 := Label.new()
+	l2.text = "【内容文件夹】（用户指定目录；内核默认在前、此处追加在后，后扫者覆盖同名）"
+	l2.add_theme_font_size_override("font_size", 16)
+	box.add_child(l2)
+	for kind in [["danmaku_tex", "弹幕材质"], ["hitbox_tex", "判定盒图"], ["chara_tex", "角色贴图"], ["audio", "音乐/音效"]]:
+		box.add_child(_settings_content_row(kind[0], kind[1]))
+	return sc
+
+func _settings_content_row(kind: String, label: String) -> HBoxContainer:
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 8)
+	var l := Label.new()
+	l.text = label
+	l.custom_minimum_size = Vector2(80, 0)
+	row.add_child(l)
+	var cur := Label.new()
+	cur.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	cur.clip_text = true
+	var dirs: Array = THXKit.content_dirs.get(kind, [])
+	cur.text = str(dirs[0]) if not dirs.is_empty() else "（未指定）"
+	row.add_child(cur)
+	var dlg := FileDialog.new()
+	dlg.access = FileDialog.ACCESS_FILESYSTEM
+	dlg.file_mode = FileDialog.FILE_MODE_OPEN_DIR
+	dlg.title = "选择 %s 目录" % label
+	dlg.size = Vector2i(720, 480)
+	row.add_child(dlg)
+	var pick := Button.new()
+	pick.text = "选取"
+	pick.focus_mode = Control.FOCUS_NONE
+	pick.pressed.connect(func(): dlg.popup_centered())
+	row.add_child(pick)
+	var clr := Button.new()
+	clr.text = "清除"
+	clr.focus_mode = Control.FOCUS_NONE
+	row.add_child(clr)
+	dlg.dir_selected.connect(func(fp: String):
+		THXKit.set_content_dir(kind, fp)
+		DanmakuTex.invalidate_scan()
+		CharaTex.invalidate_all()
+		cur.text = fp
+		_refresh_assets()
+		_set_status("%s 目录已设置：%s" % [label, fp]))
+	clr.pressed.connect(func():
+		THXKit.set_content_dir(kind, "")
+		DanmakuTex.invalidate_scan()
+		CharaTex.invalidate_all()
+		cur.text = "（未指定）"
+		_set_status("%s 目录已清除" % label))
+	return row
+
+## —— 探针页（③-C 框架：编辑模式调试数据收集）——
+func _build_probe_page() -> Control:
+	var sc := ScrollContainer.new()
+	sc.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	sc.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	sc.name = "ProbePage"
+	var box := VBoxContainer.new()
+	box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	box.add_theme_constant_override("separation", 8)
+	sc.add_child(box)
+	_page_holder.add_child(sc)
+	sc.visible = false
+	var tip := Label.new()
+	tip.text = "探针面板（③-C）：编辑模式调试数据一览——切到本页即刷新。"
+	tip.add_theme_font_size_override("font_size", 12)
+	box.add_child(tip)
+	var out := Label.new()
+	out.name = "ProbeOut"
+	out.text = "（待刷新）"
+	out.add_theme_font_size_override("font_size", 13)
+	box.add_child(out)
+	return sc
+
+func _refresh_probe() -> void:
+	var page: Control = _top_pages.get("probe")
+	if page == null:
+		return
+	var out: Label = page.find_child("ProbeOut", true, false)
+	if out == null:
+		return
+	_collect_form()
+	## 事件统计：按 tag 分组+材质引用缺失名单+表达式量
+	var by_tag := {}
+	var miss_tex: Array[String] = []
+	var all_names: Array[String] = DanmakuTex.list_names()
+	for k in GameGlobals.editor_textures:
+		if not all_names.has(k):
+			all_names.append(k)
+	for ev in events:
+		by_tag[ev.tag] = int(by_tag.get(ev.tag, 0)) + 1
+		var tname := str(ev.texture).strip_edges()
+		if tname != "" and not all_names.has(tname):
+			miss_tex.append("%s→材质「%s」缺失" % [ev.event_name, tname])
+	var lines: Array[String] = []
+	lines.append("事件总数：%d" % events.size())
+	for t in by_tag:
+		lines.append("　%s：%d" % [t, by_tag[t]])
+	lines.append("材质库：%d 种（含用户文件夹）" % all_names.size())
+	lines.append("当前工程：%s" % (_project_path if _project_path != "" else "未保存"))
+	lines.append("特殊判定盒开关：%s（Bullet.special_hitbox_enabled）" % ("开" if Bullet.special_hitbox_enabled else "关"))
+	if miss_tex.is_empty():
+		lines.append("材质引用缺失：无 ✓")
+	else:
+		lines.append("材质引用缺失：%d 处" % miss_tex.size())
+		for m in miss_tex:
+			lines.append("　" + m)
+	## 编译状态（可行性检查轻量版：编译不落状态）
+	var err_n := 0
+	for ev2 in events:
+		var errs: Array = ev2.compile()
+		if not errs.is_empty():
+			err_n += 1
+	lines.append("编译错误事件：%d/%d" % [err_n, events.size()])
+	out.text = "\n".join(lines)
 
 ## —— 主页面切换（懒建角色/时间轴页）——
 func _show_main_page(key: String) -> void:
@@ -647,7 +858,7 @@ func _append_common_preview(page: Control, ev: DanmakuEventData) -> void:
 	var box := VBoxContainer.new()
 	wrap.add_child(box)
 	var l := Label.new()
-	l.text = "【材质/判定盒/旋转中心】红=判定盒图叠加 橙点=旋转-运动中心"
+	l.text = "【展示】材质/判定盒/旋转中心（红=判定盒图判定区·白像素，橙点=旋转-运动中心）"
 	l.add_theme_font_size_override("font_size", 11)
 	box.add_child(l)
 	## 一行三列：材质卡（含尺寸信息）｜覆盖画布｜显示开关列
@@ -672,10 +883,27 @@ func _append_common_preview(page: Control, ev: DanmakuEventData) -> void:
 	row.add_child(ov)
 	var refresh := func():
 		var tex: Texture2D = DanmakuTex.resolve(ev.texture)
-		var htex: Texture2D = DanmakuTex.resolve(ev.hitbox_name) if str(ev.hitbox_name).strip_edges() != "" else null
+		## 【同显示 20261112】判定盒选"同显示"=用弹幕材质本身
+		var htex: Texture2D = null
+		if ev.hitbox_name == DanmakuEventData.HITBOX_SAME:
+			htex = tex
+		elif str(ev.hitbox_name).strip_edges() != "":
+			htex = DanmakuTex.resolve(ev.hitbox_name)
 		prev.texture = tex
 		tinfo.text = "%s　%d×%d" % [ev.texture, tex.get_width() if tex != null else 0, tex.get_height() if tex != null else 0]
-		var himg: Image = htex.get_image() if htex != null and htex.get_image() != null else null
+		## 【判定盒显示修复 20261112】旧版整图红罩叠加（黑背景也染红=分不清
+		## 判定区）；现按位图判定同阈值（白=判定）生成 红/透明 覆盖图——所见即所判
+		var himg: Image = null
+		if htex != null and htex.get_image() != null:
+			var src: Image = htex.get_image()
+			if src.is_compressed():
+				src = src.duplicate()
+				src.decompress()
+			himg = Image.create(src.get_width(), src.get_height(), false, Image.FORMAT_RGBA8)
+			for yy in src.get_height():
+				for xx in src.get_width():
+					if src.get_pixel(xx, yy).r > 0.5:
+						himg.set_pixel(xx, yy, Color(1.0, 0.25, 0.25, 0.6))
 		## 【开关保持 20261112】不再 set_script 重挂（会重置 show_hitbox/show_spin
 		## 与按钮态脱节）——脚本只在创建时挂一次，此后直接改属性
 		ov.base_tex = tex
@@ -966,20 +1194,17 @@ func _make_widget(row: Array, ev: DanmakuEventData) -> Control:
 			return o
 		"opt_tex":
 			var o := OptionButton.new()
-			var names: Array[String] = []
-			var dir := DirAccess.open("res://gameAssetBase/shooting/danmaku16pxs")
-			if dir != null:
-				dir.list_dir_begin()
-				var f := dir.get_next()
-				while f != "":
-					if f.ends_with(".png") or f.ends_with(".PNG"):
-						names.append(f.get_basename())
-					f = dir.get_next()
-				dir.list_dir_end()
+			## 【修复 20261112】材质清单改 DanmakuTex.list_names()——旧硬编码
+			## gameAssetBase 目录在裸本体不存在=下拉永远空（判定盒显示故障根因）；
+			## 现与 resolve 同源（内核默认+用户内容文件夹+导入材质）
+			var names: Array[String] = DanmakuTex.list_names()
 			for k in GameGlobals.editor_textures:
 				if not names.has(k):
 					names.append(k)
 			names.sort()
+			## 【同显示 20261112（作者）】判定盒行首项=同显示（判定形状=材质本身）
+			if key == "hitbox":
+				o.add_item(DanmakuEventData.HITBOX_SAME)
 			for n in names:
 				o.add_item(n)
 			var cur_tex: String = str(_ev_get_or_empty(ev, key))
@@ -989,8 +1214,15 @@ func _make_widget(row: Array, ev: DanmakuEventData) -> Control:
 					o.select(i)
 					tfound = true
 					break
-			if not tfound and o.item_count > 0:
-				o.select(0)
+			if not tfound:
+				if key == "hitbox":
+					o.select(0) ## 判定盒默认=同显示
+				elif o.item_count > 0:
+					o.select(0)
+			## 【展示实时刷新 20261112】选择变化即重绘展示卡（refresh 钩已实做）
+			o.item_selected.connect(func(_i):
+				if ev.preview_refresh_cb.is_valid():
+					ev.preview_refresh_cb.call())
 			return o
 	return Label.new()
 
@@ -1230,10 +1462,13 @@ func _on_file_selected(path: String) -> void:
 			_save_package(path, "thx")
 		"save_thxp":
 			_save_package(path, "thxp")
+			_project_path = path ## 【工程路径记录 20261112】退出保存/再次保存用
 		"save_thxe":
 			_save_package(path, "thxe")
 		"load_thx":
 			_load_package(path)
+			if path.ends_with(".thxp"):
+				_project_path = path ## 载入工程=成为当前工程
 		"import_tex":
 			_import_texture(path)
 
@@ -1264,21 +1499,73 @@ func _draft_restore() -> bool:
 	return true
 
 ## 退出确认：保存并退出 / 不保存退出（按 draft 还原）/ 取消
+## 【卡死修复 20261112（作者：无论是否保存都卡死）】ConfirmationDialog（内嵌
+## OS 子窗口）换自绘面板——语义层探针无卡点（30-103ms 全通），卡死=内嵌窗口
+## 交互层（本项目弹窗坑同族：从不显示/开屏误弹/gui_embed_subwindows）；
+## 自绘 PanelContainer 挂编辑器树内，无窗口层依赖。
+## 【保存语义（作者 20261112）】保存并退出=存当前工程 .thxp（无工程路径→
+## PROJECTS_DIR/untitled.thxp）；官方数据写回仅工程环境执行（裸本体写内核
+## data/=污染官方库）；draft 机制保留。
 func _confirm_exit(mode: String) -> void:
-	var dlg := ConfirmationDialog.new()
-	dlg.title = "退出编辑器"
-	dlg.dialog_text = "是否保存后退出？\n· 保存并退出=写回数据表后退出程序\n· 不保存退出=按 draft.csv 还原上次保存点\n· 关闭窗口=留在编辑器"
-	dlg.ok_button_text = "保存并退出"
-	dlg.cancel_button_text = "不保存退出"
-	_dialog_reparent(dlg)
-	dlg.confirmed.connect(func():
-		_on_export_official()
+	_close_exit_panel()
+	_exit_panel = PanelContainer.new()
+	var wrap := MarginContainer.new()
+	for m in ["margin_left", "margin_right", "margin_top", "margin_bottom"]:
+		wrap.add_theme_constant_override(m, 14)
+	_exit_panel.add_child(wrap)
+	var box := VBoxContainer.new()
+	box.add_theme_constant_override("separation", 10)
+	wrap.add_child(box)
+	var t := Label.new()
+	t.text = "退出编辑器"
+	t.add_theme_font_size_override("font_size", 18)
+	box.add_child(t)
+	var info := Label.new()
+	var proj := _project_path if _project_path != "" else String(THXKit.PROJECTS_DIR).path_join("untitled.thxp")
+	info.text = "保存并退出 → 存入工程 %s%s\n不保存退出 → 按 draft.csv 还原上次保存点\n取消 → 留在编辑器" % [
+		proj, "" if _is_project_env() else "\n（当前非游戏工程环境：不写回官方数据表）"]
+	info.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	info.custom_minimum_size = Vector2(380, 0)
+	box.add_child(info)
+	var btns := HBoxContainer.new()
+	btns.add_theme_constant_override("separation", 10)
+	btns.alignment = BoxContainer.ALIGNMENT_END
+	box.add_child(btns)
+	var save_b := Button.new()
+	save_b.text = "保存并退出"
+	save_b.pressed.connect(func():
+		_collect_form()
+		_draft_stash() ## 还原点=保存前（draft 机制保留）
+		_save_package(proj, "thxp")
+		_project_path = proj
+		if _is_project_env():
+			_on_export_official() ## 官方数据写回=仅工程环境
+		_close_exit_panel()
 		_after_exit(mode))
-	dlg.canceled.connect(func():
+	btns.add_child(save_b)
+	var drop_b := Button.new()
+	drop_b.text = "不保存退出"
+	drop_b.pressed.connect(func():
 		if not _draft_restore():
 			_set_status("无 draft.csv（从未保存/导出）——直接退出，改动随自动同步保留")
+		_close_exit_panel()
 		_after_exit(mode))
-	dlg.popup_centered()
+	btns.add_child(drop_b)
+	var cancel_b := Button.new()
+	cancel_b.text = "取消"
+	cancel_b.pressed.connect(_close_exit_panel)
+	btns.add_child(cancel_b)
+	add_child(_exit_panel)
+	## 居中（编辑器树内 Control 布局，非窗口 popup）
+	_exit_panel.ready.connect(func():
+		if _exit_panel != null and is_instance_valid(_exit_panel):
+			var vp_sz := get_viewport_rect().size
+			_exit_panel.position = ((vp_sz - _exit_panel.get_minimum_size()) * 0.5).floor())
+
+func _close_exit_panel() -> void:
+	if _exit_panel != null and is_instance_valid(_exit_panel):
+		_exit_panel.queue_free()
+	_exit_panel = null
 
 func _after_exit(mode: String) -> void:
 	match mode:
@@ -2406,11 +2693,11 @@ func _open_preview_window() -> void:
 	_collect_form()
 	var ev := events[selected_idx] if selected_idx >= 0 and selected_idx < events.size() else null
 	if ev == null:
-		_set_status("弹幕显示浮窗：请先在左侧选择一个弹幕事件")
+		_set_status("弹幕预览：请先在左侧选择一个弹幕事件")
 		return
 	var errs := ev.compile()
 	if not errs.is_empty():
-		_set_status("弹幕显示浮窗：表达式有错，先做可行性检查——%s" % errs[0])
+		_set_status("弹幕预览：表达式有错，先做可行性检查——%s" % errs[0])
 		return
 	## 【作者批复 2026-10-03】浮窗不存在时呼出；已存在时只覆盖被显示的弹幕
 	## （旧实现 queue_free+重建 → 二次点击崩溃）
@@ -2418,11 +2705,11 @@ func _open_preview_window() -> void:
 		var st := _preview_window.get_child(0) if _preview_window.get_child_count() > 0 else null
 		if st != null and st.has_method("set_event"):
 			st.set_event(ev)
-			_preview_window.title = "弹幕显示 — %s（Z=发射  Esc=关闭）" % ev.event_name
-			_set_status("浮窗已覆盖为 %s，按 Z 发射" % ev.event_name)
+			_preview_window.title = "弹幕预览 — %s（Z=发射  Esc=关闭）" % ev.event_name
+			_set_status("弹幕预览已覆盖为 %s，按 Z 发射" % ev.event_name)
 			return
 	_preview_window = Window.new()
-	_preview_window.title = "弹幕显示 — %s（Z=发射  Esc=关闭）" % ev.event_name
+	_preview_window.title = "弹幕预览 — %s（Z=发射  Esc=关闭）" % ev.event_name
 	_preview_window.size = Vector2i(460, 560)
 	var stage: Node2D = (load("res://addons/thx_gamekit/editor/danmaku_preview_stage.gd") as GDScript).new()
 	stage.ev = ev
@@ -2430,6 +2717,6 @@ func _open_preview_window() -> void:
 	_preview_window.close_requested.connect(func(): _preview_window.queue_free())
 	get_tree().root.add_child(_preview_window)
 	_preview_window.show()
-	_set_status("弹幕显示浮窗已打开：在浮窗内按 Z 发射 %s（可反复按，Esc 关闭）" % ev.event_name)
+	_set_status("弹幕预览已打开：在预览窗内按 Z 发射 %s（可反复按，Esc 关闭）" % ev.event_name)
 	## 【批复 2026-10-02】[Z] 的定义已改为"试炼场中让角色发射该弹幕"
 	## （battle_arena 预览模式 KEY_Z），本浮窗只是参数速览，不再绑定 Z。

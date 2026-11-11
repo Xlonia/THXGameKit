@@ -71,6 +71,20 @@ static func invalidate_scan() -> void:
 	_official_scanned = false
 	_official_index.clear()
 
+## 【编辑器 opt_tex 20261112】全部可用材质名（扫描索引+运行时缓存 dedupe）——
+## 旧实现硬编码 gameAssetBase 目录：裸本体目录不存在=下拉永远空（判定盒
+## 显示故障根因之一）；现走与 resolve 同源的扫描索引（含用户内容文件夹）
+static func list_names() -> Array[String]:
+	_scan_official_once()
+	var out: Array[String] = []
+	for k in _official_index:
+		out.append(_official_index[k].get_file().get_basename())
+	for k in runtime_cache:
+		if not out.has(k):
+			out.append(k)
+	out.sort()
+	return out
+
 ## 兜底材质：8×8 白圆（缺材质时不至于看不见弹幕）
 static func _fallback() -> Texture2D:
 	var img := Image.create(8, 8, false, Image.FORMAT_RGBA8)
