@@ -55,6 +55,20 @@ func _ready() -> void:
 		box.add_child(btn)
 	add_child(pause_panel)
 	pause_panel.position = Vector2(160, 140)
+	## 【往返修复 20261112（作者：点击试炼场预览后回不来）】常驻退出按钮——
+	## 旧版退出只藏在 Esc 暂停面板里（发现不了=回不去）。按钮在场地右侧，
+	## 与 Esc 暂停面板同走 _on_pause_btn("退出试炼场") 路由
+	var exit_b := Button.new()
+	exit_b.text = "✕ 退出试炼场"
+	exit_b.focus_mode = Control.FOCUS_NONE
+	exit_b.position = Vector2(410, 8)
+	exit_b.pressed.connect(_on_pause_btn.bind("退出试炼场"))
+	add_child(exit_b)
+	var hint := Label.new()
+	hint.text = "方向键=移动  Esc=暂停"
+	hint.add_theme_font_size_override("font_size", 12)
+	hint.position = Vector2(410, 44)
+	add_child(hint)
 
 func _spawn_volley(ev: DanmakuEventData) -> void:
 	## 每 0.1s 一轮：从发射者位置释放一次事件（含旋转/重复子代自动展开）

@@ -29,8 +29,10 @@ const SCHEMA_COMMON := [
 	["spin_y", "旋转-运动中心Y(像素,默认0)", "num"],
 	["hitbox", "判定盒图(黑白PNG·特殊判定盒用)", "opt_tex"],
 	["color_adv", "颜色(#hex)·高级RGB", "color_adv"],
-	["dmg", "伤害(整式,碎甲类=瘫痪秒)", "num_expr"],
-	["dmg_mode", "攻击模式", "opt", ["N", "I", "S"]],
+	["dmg", "伤害(整式)", "num_expr"],
+	## 【N/I/S 残余清除 20261112（作者）】裸本体不可再选取伤害模式——
+	## 结算=N/I/S 属自走棋插件（BattleEntity.take_hit），编辑器不再提供选取入口；
+	## dmg_mode 数据列保留（CSV 往返无损：to_csv_row 固定写加载值），宿主侧可用
 	["dmg_allow_moderate", "允许伤害调整", "check"],
 	["repeat_time", "重复时间(整式,帧,副本间隔)", "num_expr"],
 	["repeat_freq", "重复频率(整式,补发次数,0=禁用)", "num_expr"],
@@ -634,41 +636,57 @@ func _on_menu_file(item: String) -> void:
 			_confirm_exit("quit")
 
 ## 【0.0.9·③ 材质/判定盒/旋转中心覆盖显示】通用参数页底部预览：
-##   材质 64px + 判定盒图半透明红叠加 + 旋转-运动中心橙点
+##   材质 128px + 判定盒图半透明红叠加 + 旋转-运动中心橙点
 ##   （spin_x/spin_y 或 hitbox 编辑变化时实时重绘——绑定在表单构建后）
+## 【错位修复 20261112（作者）】预览改为表单下方**专属行列段落**（角色预览
+##   同款：左材质卡+右覆盖画布并排，按钮列在旁）——旧版把预览 VBox 直接
+##   add_child 进 ScrollContainer（第二个子节点与表单 grid 叠加，盖住字段字幕）
 func _append_common_preview(page: Control, ev: DanmakuEventData) -> void:
+	var wrap := page.get_child(0) ## _make_form_page 的 VBox（grid 之上容器）
+	wrap.add_child(HSeparator.new())
 	var box := VBoxContainer.new()
-	page.add_child(box)
+	wrap.add_child(box)
 	var l := Label.new()
 	l.text = "【材质/判定盒/旋转中心】红=判定盒图叠加 橙点=旋转-运动中心"
 	l.add_theme_font_size_override("font_size", 11)
 	box.add_child(l)
+	## 一行三列：材质卡（含尺寸信息）｜覆盖画布｜显示开关列
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 12)
+	box.add_child(row)
+	var prev_box := VBoxContainer.new()
+	row.add_child(prev_box)
 	var prev := TextureRect.new()
 	prev.custom_minimum_size = Vector2(128, 128)
 	prev.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	prev.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	prev.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
-	box.add_child(prev)
-	## 覆盖显示画布（判定盒红图+中心点，与材质同框）
+	prev_box.add_child(prev)
+	var tinfo := Label.new()
+	tinfo.add_theme_font_size_override("font_size", 11)
+	prev_box.add_child(tinfo)
+	## 覆盖显示画布（判定盒红图+中心点，与材质并排同尺寸）
 	var ov := Control.new()
 	ov.custom_minimum_size = Vector2(128, 128)
 	ov.set_script(load(THXKit.kpath("res://addons/thx_gamekit/editor/preview_overlay.gd")))
-	box.add_child(ov)
+	row.add_child(ov)
 	var refresh := func():
 		var tex: Texture2D = DanmakuTex.resolve(ev.texture)
 		var htex: Texture2D = DanmakuTex.resolve(ev.hitbox_name) if str(ev.hitbox_name).strip_edges() != "" else null
 		prev.texture = tex
+		tinfo.text = "%s　%d×%d" % [ev.texture, tex.get_width() if tex != null else 0, tex.get_height() if tex != null else 0]
 		var himg: Image = htex.get_image() if htex != null and htex.get_image() != null else null
-		ov.set_script(null)
-		ov.set_script(load(THXKit.kpath("res://addons/thx_gamekit/editor/preview_overlay.gd")))
+		## 【开关保持 20261112】不再 set_script 重挂（会重置 show_hitbox/show_spin
+		## 与按钮态脱节）——脚本只在创建时挂一次，此后直接改属性
 		ov.base_tex = tex
 		ov.hitbox_img = himg
 		ov.spin_center = Vector2(ev.spin_x, ev.spin_y)
 		ov.queue_redraw()
 	refresh.call()
 	## 【作者 20261111】画布旁两按钮：判定盒显示 / 旋转中心显示
-	var btns := HBoxContainer.new()
-	box.add_child(btns)
+	var btns := VBoxContainer.new()
+	btns.add_theme_constant_override("separation", 6)
+	row.add_child(btns)
 	var hb_b := Button.new()
 	hb_b.text = "判定盒显示：开"
 	hb_b.toggle_mode = true
@@ -775,7 +793,13 @@ func _make_form_page(tab_name: String, schema: Array, ev: DanmakuEventData) -> S
 	grid.add_theme_constant_override("h_separation", 12)
 	grid.add_theme_constant_override("v_separation", 4)
 	grid.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	page.add_child(grid)
+	## 【错位修复 20261112】ScrollContainer 包一层 VBox——表单 grid 之外可
+	## 追加专属行列段落（材质/判定盒/旋转中心预览卡）。旧版把预览作为
+	## ScrollContainer 第二子节点直接叠加，与表单 grid 重叠盖住字段字幕
+	var wrap := VBoxContainer.new()
+	wrap.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	page.add_child(wrap)
+	wrap.add_child(grid)
 	for row in schema:
 		var key: String = row[0]
 		var label := Label.new()

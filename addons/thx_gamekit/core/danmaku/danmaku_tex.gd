@@ -66,6 +66,11 @@ static func _scan_official_once() -> void:
 			f = dir.get_next()
 		dir.list_dir_end()
 
+## 【标题画面-选项 20261112】内容文件夹变更后重扫（下次 resolve 触发）
+static func invalidate_scan() -> void:
+	_official_scanned = false
+	_official_index.clear()
+
 ## 兜底材质：8×8 白圆（缺材质时不至于看不见弹幕）
 static func _fallback() -> Texture2D:
 	var img := Image.create(8, 8, false, Image.FORMAT_RGBA8)

@@ -65,7 +65,7 @@ func _ready() -> void:
 	tg.queue_free()
 	await get_tree().process_frame
 	## ③b CharaDB 新建/导入（数据层直测；测后还原 characters.csv）
-	var csv_backup: PackedByteArray = FileAccess.get_file_as_bytes(CharaDB.CSV_PATH)
+	var csv_backup: PackedByteArray = FileAccess.get_file_as_bytes(CharaDB.csv_path())
 	var okc: bool = CharaDB.new_character("KitTest1")
 	print("  %s new_character 建档" % ["PASS" if okc else "FAIL"])
 	if not okc: fails += 1
@@ -84,7 +84,7 @@ KitTest3,测试三
 	var ok5: bool = CharaDB.save_row("KitTest2", upsert) 		and String(CharaDB.get_by_name("KitTest2").get("NameZH", "")) == "改名二"
 	print("  %s 已存在行 upsert 覆盖" % ["PASS" if ok5 else "FAIL"])
 	if not ok5: fails += 1
-	var f := FileAccess.open(CharaDB.CSV_PATH, FileAccess.WRITE)
+	var f := FileAccess.open(CharaDB.csv_path(), FileAccess.WRITE)
 	f.store_buffer(csv_backup)
 	f.close()
 	var restored: bool = CharaDB.get_by_name("KitTest1").is_empty() 		and not CharaDB.get_by_name("Youshio").is_empty()

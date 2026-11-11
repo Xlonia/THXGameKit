@@ -88,6 +88,12 @@ static func invalidate(name_key: String, name_zh: String = "") -> void:
 	_cache.erase(name_key + "|" + name_zh)
 	_cache.erase(name_key + "|" + name_key) ## name_zh 兜底同键
 
+## 【标题画面-选项 20261112】内容文件夹变更后整体重扫（下次 get_chara 触发）
+static func invalidate_all() -> void:
+	_dir_scanned = false
+	_stem_map.clear()
+	_cache.clear()
+
 static func frame_region(c: Dictionary, frame_i: int) -> Rect2:
 	var n: int = c["frames"]
 	var fi := wrapi(frame_i, 0, n)
