@@ -43,20 +43,28 @@ static func _scan_official_once() -> void:
 	if _official_scanned:
 		return
 	_official_scanned = true
-	## 【DATA_BASE 语义=材质根目录本身（danmaku16pxs）——宿主直接指向，不再二次拼接】
-	var scan_dir := DATA_BASE if DATA_BASE != "" else "res://gameAssetBase/shooting/danmaku16pxs"
-	var dir := DirAccess.open(scan_dir)
-	print("[scan] dir=%s open=%s DATA_BASE_type=%s" % [scan_dir, str(dir != null), type_string(typeof(DATA_BASE))])
-	if dir == null:
-		return
-	dir.list_dir_begin()
-	var f := dir.get_next()
-	while f != "":
-		var lower := f.to_lower()
-		if lower.ends_with(".png") or lower.ends_with(".bmp") or lower.ends_with(".cur") or lower.ends_with(".ico"):
-			_official_index[f.get_basename().to_lower()] = scan_dir.path_join(f)
-		f = dir.get_next()
-	dir.list_dir_end()
+	## 【DATA_BASE 语义=材质根目录本身】+ THXKit.content_scan_dirs 用户追加
+	## 目录（后扫者覆盖同名——用户文件夹优先）；.import 不收
+	var dirs: Array = []
+	if DATA_BASE != "":
+		dirs.append(DATA_BASE)
+	dirs.append("res://gameAssetBase/shooting/danmaku16pxs")
+	var main_loop := Engine.get_main_loop()
+	if main_loop != null and main_loop.root.has_node("THXKit"):
+		dirs.append_array((main_loop.root.get_node("THXKit") as Node).content_scan_dirs("danmaku_tex"))
+	for scan_dir in dirs:
+		var dir := DirAccess.open(scan_dir)
+		if dir == null:
+			continue
+		dir.list_dir_begin()
+		var f := dir.get_next()
+		while f != "":
+			if not f.ends_with(".import"):
+				var lower := f.to_lower()
+				if lower.ends_with(".png") or lower.ends_with(".bmp") or lower.ends_with(".cur") or lower.ends_with(".ico"):
+					_official_index[f.get_basename().to_lower()] = scan_dir.path_join(f)
+			f = dir.get_next()
+		dir.list_dir_end()
 
 ## 兜底材质：8×8 白圆（缺材质时不至于看不见弹幕）
 static func _fallback() -> Texture2D:

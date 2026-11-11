@@ -652,7 +652,7 @@ func _append_common_preview(page: Control, ev: DanmakuEventData) -> void:
 	## 覆盖显示画布（判定盒红图+中心点，与材质同框）
 	var ov := Control.new()
 	ov.custom_minimum_size = Vector2(128, 128)
-	ov.set_script(load("res://addons/thx_gamekit/editor/preview_overlay.gd"))
+	ov.set_script(load(THXKit.kpath("res://addons/thx_gamekit/editor/preview_overlay.gd")))
 	box.add_child(ov)
 	var refresh := func():
 		var tex: Texture2D = DanmakuTex.resolve(ev.texture)
@@ -660,12 +660,33 @@ func _append_common_preview(page: Control, ev: DanmakuEventData) -> void:
 		prev.texture = tex
 		var himg: Image = htex.get_image() if htex != null and htex.get_image() != null else null
 		ov.set_script(null)
-		ov.set_script(load("res://addons/thx_gamekit/editor/preview_overlay.gd"))
+		ov.set_script(load(THXKit.kpath("res://addons/thx_gamekit/editor/preview_overlay.gd")))
 		ov.base_tex = tex
 		ov.hitbox_img = himg
 		ov.spin_center = Vector2(ev.spin_x, ev.spin_y)
 		ov.queue_redraw()
 	refresh.call()
+	## 【作者 20261111】画布旁两按钮：判定盒显示 / 旋转中心显示
+	var btns := HBoxContainer.new()
+	box.add_child(btns)
+	var hb_b := Button.new()
+	hb_b.text = "判定盒显示：开"
+	hb_b.toggle_mode = true
+	hb_b.button_pressed = true
+	hb_b.pressed.connect(func():
+		ov.show_hitbox = hb_b.button_pressed
+		hb_b.text = "判定盒显示：%s" % ("开" if hb_b.button_pressed else "关")
+		ov.queue_redraw())
+	btns.add_child(hb_b)
+	var sp_b := Button.new()
+	sp_b.text = "旋转中心显示：开"
+	sp_b.toggle_mode = true
+	sp_b.button_pressed = true
+	sp_b.pressed.connect(func():
+		ov.show_spin = sp_b.button_pressed
+		sp_b.text = "旋转中心显示：%s" % ("开" if sp_b.button_pressed else "关")
+		ov.queue_redraw())
+	btns.add_child(sp_b)
 	ev.bind_preview_refresh(refresh)
 
 ## =============================================================

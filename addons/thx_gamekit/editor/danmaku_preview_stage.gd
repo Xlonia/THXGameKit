@@ -27,11 +27,11 @@ func _ready() -> void:
 	## _draw 之上，会把激光线/轨道全盖住（仅框外露出）；改 _draw 首笔画背景
 	_mm_layer = Node2D.new()
 	## 复用战场绘制桥（draw_kind="bulletmm" → 本舞台 draw_bullet_mm）
-	_mm_layer.set_script(load("res://addons/thx_gamekit/editor/arena_painters.gd"))
+	_mm_layer.set_script(load(THXKit.kpath("res://addons/thx_gamekit/editor/arena_painters.gd")))
 	_mm_layer.host = self
 	_mm_layer.draw_kind = "bulletmm"
 	var mat := ShaderMaterial.new()
-	mat.shader = load("res://addons/thx_gamekit/shaders/bullet_tint.gdshader")
+	mat.shader = load(THXKit.kpath("res://addons/thx_gamekit/shaders/bullet_tint.gdshader"))
 	_mm_layer.material = mat
 	add_child(_mm_layer)
 	if get_viewport() != null:

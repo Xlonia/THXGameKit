@@ -179,39 +179,28 @@ func tick() -> void:
 			stun_frames[i] -= 1
 
 ## =============================================================
-## 被弹结算（部位三类型：一般 N / 穿透 I / 碎甲 S）
-## 免疫帧内完全跳过；全部位归零= destroyed 信号
+## 【被弹结算=N/I/S 伤害类型（作者 20261111：自走棋插件内容）】
+## 内核只保留 部位/免疫帧/瘫痪帧 状态底座与 take_hit 虚方法——
+## N/I/S 三类伤害的具体结算由玩法插件覆盖实现（BattleEntity.take_hit）。
 ## =============================================================
-func take_hit(dmg: int, dmg_type: int, hit_angle: float) -> bool:
-	if dead or immune_frames > 0:
-		return false
-	if dmg <= 0 and dmg_type != 2:
-		return false
-	var part := _part_from_angle(hit_angle)
-	match dmg_type:
-		0: ## 一般(N)
-			if ap > 0:
-				ap = maxi(0, ap - dmg)
-			else:
-				hp[part] = maxi(0, hp[part] - dmg)
-				_apply_serious(part)
-		1: ## 穿透(I)：AP 削减反比；AP=0 → dmg÷0=浮点最大值（一发重伤）
-			var direct: float
-			if ap > 0:
-				direct = maxf(1.0, float(dmg) * float(ap) / 100.0)
-				direct = minf(direct, impale_cap)
-			else:
-				direct = minf(3.4e38, impale_cap)
-			hp[part] = maxi(0, hp[part] - int(minf(direct, 1e9)))
-			_apply_serious(part)
-		2: ## 碎甲(S)：瘫痪秒=dmg
-			stun_frames[part] = maxi(stun_frames[part], dmg * 60)
-	immune_frames = 30
-	damaged.emit(self)
-	if hp[0] <= 0 and hp[1] <= 0 and hp[2] <= 0:
-		dead = true
-		destroyed.emit(self)
-	return true
+func take_hit(_dmg: int, _dmg_type: int, _hit_angle: float) -> bool:
+	return false ## 插件覆盖
+
+func _on_hp_changed() -> void:
+	for i in 3:
+		if hp[i] <= 0:
+			_apply_serious(i)
+
+func _apply_serious(part: int) -> void:
+	## 钩子：玩法插件可覆盖（"重伤叠加""修理"等——文档：重伤会叠加）
+	pass
+
+func _part_from_angle(angle: float) -> int:
+	if absf(angle_difference(angle, -PI / 2.0)) <= deg_to_rad(60.0):
+		return PART_WEAPON
+	if absf(angle_difference(angle, PI / 2.0)) <= deg_to_rad(60.0):
+		return PART_MOVE
+	return PART_BODY
 
 ## 重伤副作用（getset 检测）：部位归零 → 对应能力失效由 part_ok 即时反映
 func _on_hp_changed() -> void:

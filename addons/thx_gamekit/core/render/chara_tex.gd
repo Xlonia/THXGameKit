@@ -20,14 +20,21 @@ static func _scan_dir() -> void:
 	if _dir_scanned:
 		return
 	_dir_scanned = true
-	## 【0.0.9·挂载点无关】DATA_BASE=角色贴图目录本身（THXKit 推送/宿主覆盖）
-	var scan_dir := DATA_BASE if DATA_BASE != "" else "res://addons/thx_gamekit/data/textures/chars"
-	var dir := DirAccess.open(scan_dir)
-	if dir == null:
-		return
-	for f in dir.get_files():
-		if f.to_lower().ends_with(".png") and not f.ends_with(".import"):
-			_stem_map[f.get_basename().to_lower()] = scan_dir.path_join(f)
+	## 【0.0.9·挂载点无关+用户文件夹】DATA_BASE（THXKit 推送/宿主覆盖）+
+	## THXKit.content_scan_dirs 用户追加目录（后扫者覆盖同名）
+	var dirs: Array = []
+	if DATA_BASE != "":
+		dirs.append(DATA_BASE)
+	var main_loop := Engine.get_main_loop()
+	if main_loop != null and main_loop.root.has_node("THXKit"):
+		dirs.append_array((main_loop.root.get_node("THXKit") as Node).content_scan_dirs("chara_tex"))
+	for scan_dir in dirs:
+		var dir := DirAccess.open(scan_dir)
+		if dir == null:
+			continue
+		for f in dir.get_files():
+			if f.to_lower().ends_with(".png") and not f.ends_with(".import"):
+				_stem_map[f.get_basename().to_lower()] = scan_dir.path_join(f)
 
 ## 【编辑器导入/清除路径】角色贴图目录本身
 static func chars_dir() -> String:

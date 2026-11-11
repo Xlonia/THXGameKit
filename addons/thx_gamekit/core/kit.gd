@@ -27,12 +27,57 @@ var DATA_DIR := ""      ## .../data（官方表示例/材质/时间轴）
 var SCENES_DIR := ""    ## .../scenes（试炼场/编辑器场景）
 var PROJECTS_DIR := "user://thx_gamekit" ## 【appdata 默认】.thxp/.thx/.thxe 存放处（作者 20261111）
 
+## 【0.0.9·③ 用户内容文件夹（作者 20261111）】材质/判定盒图/角色贴图/音乐/音效
+## 可由用户指定特定文件夹（游戏工程可不配置=用内核默认）；顶栏标签页配置。
+const CONTENT_DIRS_CFG := "user://thx_gamekit/content_dirs.json"
+var content_dirs: Dictionary = {} ## {"danmaku_tex": [...], "hitbox_tex": [...], "chara_tex": [...], "audio": [...]}
+
+func content_scan_dirs(kind: String) -> Array:
+	## 该类内容的扫描目录列表（内核默认在前，用户追加在后——后扫者覆盖同名）
+	var out: Array = []
+	match kind:
+		"danmaku_tex":
+			out.append(DATA_DIR.path_join("textures/danmaku16pxs"))
+		"chara_tex":
+			out.append(DATA_DIR.path_join("textures/chars"))
+		"audio":
+			out.append(DATA_DIR.path_join("audio"))
+	for d in content_dirs.get(kind, []):
+		var abs: String = d
+		if not abs.begins_with("res://") and not abs.begins_with("user://"):
+			abs = ProjectSettings.globalize_path(abs)
+		if DirAccess.dir_exists_absolute(abs):
+			out.append(abs)
+	return out
+
+func set_content_dir(kind: String, user_dir: String) -> void:
+	## 用户指定文件夹（空串=清除）；持久化 user://thx_gamekit/content_dirs.json
+	var arr: Array = content_dirs.get(kind, [])
+	arr.erase(user_dir)
+	if user_dir != "":
+		arr.append(user_dir)
+	if arr.is_empty():
+		content_dirs.erase(kind)
+	else:
+		content_dirs[kind] = arr
+	var f := FileAccess.open(CONTENT_DIRS_CFG, FileAccess.WRITE)
+	if f != null:
+		f.store_string(JSON.stringify(content_dirs))
+		f.close()
+
+func load_content_dirs() -> void:
+	if not FileAccess.file_exists(CONTENT_DIRS_CFG):
+		return
+	var data: Variant = JSON.parse_string(FileAccess.get_file_as_string(CONTENT_DIRS_CFG))
+	if data is Dictionary:
+		content_dirs = data
+
 func _resolve_paths() -> void:
-	## core/kit.gd → core → addon → 仓库根 → data/scenes
-	var core_dir: String = get_script().resource_path.get_base_dir()
-	var addon_dir: String = core_dir.path_join("..")
-	DATA_DIR = addon_dir.path_join("data").simplify_path()
-	SCENES_DIR = addon_dir.path_join("scenes").simplify_path()
+	if _kernel_root == "":
+		var core_dir: String = get_script().resource_path.get_base_dir()
+		_kernel_root = core_dir.path_join("..").simplify_path()
+	DATA_DIR = _kernel_root.path_join("data").simplify_path()
+	SCENES_DIR = _kernel_root.path_join("scenes").simplify_path()
 	## 推送静态基准（chara_db/danmaku_tex/chara_tex 为全静态类）
 	CharaDB.DATA_BASE = DATA_DIR
 	DanmakuTex.DATA_BASE = DATA_DIR.path_join("textures/danmaku16pxs").simplify_path() ## 根目录本身
@@ -189,6 +234,22 @@ func load_thx(path: String) -> Array[String]:
 			DanmakuTex.load_from_bytes(tex_name, zr.read_file(f))
 	zr.close()
 	return names
+
+## =============================================================
+## 【0.0.9·③ 内核路径解析（挂载点无关）】
+##   内核内部 load("res://addons/thx_gamekit/xxx") 在宿主挂载（submodule
+##   位于 addons/thxgamekit/kit/）时失效——kpath 把内核相对路径重写为
+##   实际挂载位置。所有内核内部 load() 一律走本函数。
+## =============================================================
+var _kernel_root := ""
+func kpath(rel: String) -> String:
+	if _kernel_root == "":
+		var core_dir: String = get_script().resource_path.get_base_dir()
+		_kernel_root = core_dir.path_join("..").simplify_path()
+	var tail := rel.trim_prefix("res://addons/thx_gamekit/")
+	if tail == rel:
+		return rel ## 非内核前缀路径原样返回
+	return _kernel_root.path_join(tail)
 
 ## 【挂载点无关】官方表路径（兼容层/宿主读取用）
 func official_csvs() -> Dictionary:
