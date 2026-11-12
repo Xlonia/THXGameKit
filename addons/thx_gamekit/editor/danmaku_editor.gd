@@ -463,7 +463,14 @@ func _show_top_page(key: String) -> void:
 	if key == "settings" and not _top_pages.has("settings"):
 		_top_pages["settings"] = _build_settings_page()
 	if key == "scene" and not _top_pages.has("scene"):
-		_top_pages["scene"] = _build_scene_page()
+		## 【单源 20261114】场景编辑器=ScenarioEditor（与 EditorPlugin 主屏同一实现）
+		var se := Control.new()
+		se.set_script(load(THXKit.kpath("res://addons/thx_gamekit/editor/scenario_editor.gd")))
+		se.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		se.size_flags_vertical = Control.SIZE_EXPAND_FILL
+		_page_holder.add_child(se)
+		se.visible = false
+		_top_pages["scene"] = se
 	if key == "probe" and not _top_pages.has("probe"):
 		_top_pages["probe"] = _build_probe_page()
 	for k in _top_pages:
@@ -471,54 +478,6 @@ func _show_top_page(key: String) -> void:
 	if key == "probe":
 		_refresh_probe()
 
-## —— 场景页（作者 20261113 澄清：同 Godot 主屏 2D/3D/脚本 tab 那一层的
-## 工作区标签——规划含 场景/UI 设计、内核功能引用、存档与游戏格式（待裁定）、
-## 资源/机制事件逻辑链（节点图，待设计）。本轮=勾选框占位，深度设计待探讨）
-func _build_scene_page() -> Control:
-	var sc := ScrollContainer.new()
-	sc.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	sc.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	sc.name = "ScenePage"
-	var box := VBoxContainer.new()
-	box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	box.add_theme_constant_override("separation", 10)
-	sc.add_child(box)
-	_page_holder.add_child(sc)
-	sc.visible = false
-	var l0 := Label.new()
-	l0.text = "【场景】——场景/UI 设计·内核功能引用·逻辑链（占位，设计探讨中）"
-	l0.add_theme_font_size_override("font_size", 16)
-	box.add_child(l0)
-	var tip := Label.new()
-	tip.text = "规划（作者 20261111/1113）：①场景与 UI 设计（改场景/把 UI 做成场景）②引用内核插件功能 ③存档与游戏格式设置（做法待裁定）④资源·机制的事件与逻辑链（节点图）。本轮先落全局开关占位。"
-	tip.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	tip.custom_minimum_size = Vector2(560, 0)
-	box.add_child(tip)
-	var l1 := Label.new()
-	l1.text = "全局启用/禁用（勾选框占位）"
-	l1.add_theme_font_size_override("font_size", 14)
-	box.add_child(l1)
-	var c1 := CheckBox.new()
-	c1.text = "特殊判定盒（黑白位图判定）全局启用——游戏工程级开关"
-	c1.button_pressed = Bullet.special_hitbox_enabled
-	c1.toggled.connect(func(on: bool):
-		Bullet.special_hitbox_enabled = on
-		_set_status("特殊判定盒（工程级）：%s——新弹幕生效" % ("开" if on else "关")))
-	box.add_child(c1)
-	var c2 := CheckBox.new()
-	c2.text = "判定盒像素编辑（编辑判定盒按钮）可用"
-	c2.button_pressed = THXKit.allow_hitbox_edit
-	c2.disabled = true ## 工程级禁用走宿主旗标（THX75=false）；占位展示
-	box.add_child(c2)
-	var c3 := CheckBox.new()
-	c3.text = "存档与游戏格式（做法待作者裁定后接入）"
-	c3.disabled = true
-	box.add_child(c3)
-	var c4 := CheckBox.new()
-	c4.text = "事件逻辑链节点图（设计探讨后接入）"
-	c4.disabled = true
-	box.add_child(c4)
-	return sc
 
 ## —— 设置页（③-B：存档与游戏格式 + 内容文件夹配置）——
 func _build_settings_page() -> Control:

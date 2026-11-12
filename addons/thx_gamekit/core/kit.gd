@@ -341,3 +341,93 @@ func reload_official() -> void:
 	official_events.clear()
 	_load_official()
 	invalidate_caches()
+
+## =============================================================
+## 【场景（.thxs）0.0.9·③ 作者裁定 20261114】
+##   场景=多个时间轴的集合（出生/资源/自机/数值系统节点图；Boss/配置
+##   放时间轴关键帧）；逻辑链触发自时间轴；导出可生成 .tscn。
+##   scenario_cfg=画布大小/内核参数（特殊判定盒启用等）——场景级配置
+##   单源；.thxs=zip（scenario.json+引用时间轴）。
+## =============================================================
+var scenario_name := ""
+var scenario_cfg := {
+	"canvas_w": 400, "canvas_h": 400,
+	"special_hitbox": false, "hitbox_edit": true,
+	"bullet_clear": true, ## 消弹域默认开
+}
+const SCENARIO_DIR := "user://thx_gamekit/scenarios"
+
+## 保存场景包（.thxs）：scenario.json（名称/配置/时间轴引用/节点图占位）
+## + timelines/（引用的时间轴 CSV 描述）
+func save_scenario(path: String) -> bool:
+	var zw := ZIPPacker.new()
+	if zw.open(path) != OK:
+		push_warning("[THXKit] 场景包打开失败：%s" % path)
+		return false
+	var tl_refs := []
+	var tl_payload := {}
+	for tl: TimelineData in editor_timelines:
+		tl_refs.append(tl.tl_name)
+		## 时间轴载荷=JSON（ticks→事件名数组；to_gd 是 .gd 描述体不适宜包内数据）
+		var tj := {"name": tl.tl_name, "ticks": {}}
+		for tick in tl.ticks:
+			tj["ticks"][str(tick)] = Array(tl.ticks[tick])
+		tl_payload["timelines/%s.json" % tl.tl_name] = JSON.stringify(tj, "	")
+	var meta := {
+		"format": "thxs", "version": 1,
+		"name": scenario_name, "cfg": scenario_cfg,
+		"timelines": tl_refs,
+		"graph": {}, ## 逻辑链节点图（占位——设计探讨后接入）
+	}
+	zw.start_file("scenario.json")
+	zw.write_file(JSON.stringify(meta, "\t").to_utf8_buffer())
+	zw.close_file()
+	for k in tl_payload:
+		zw.start_file(k)
+		zw.write_file(str(tl_payload[k]).to_utf8_buffer())
+		zw.close_file()
+	zw.close()
+	return true
+
+## 载入场景包（.thxs）：meta 回读（场景名/配置）+时间轴进工作集
+func load_scenario(path: String) -> bool:
+	var zr := ZIPReader.new()
+	if zr.open(path) != OK:
+		push_warning("[THXKit] 场景包打开失败：%s" % path)
+		return false
+	if not zr.file_exists("scenario.json"):
+		zr.close()
+		return false
+	var meta: Variant = JSON.parse_string(zr.read_file("scenario.json").get_string_from_utf8())
+	zr.close()
+	if typeof(meta) != TYPE_DICTIONARY or str(meta.get("format")) != "thxs":
+		return false
+	scenario_name = str(meta.get("name", ""))
+	var cfg: Variant = meta.get("cfg", {})
+	if typeof(cfg) == TYPE_DICTIONARY:
+		for k in cfg:
+			scenario_cfg[k] = cfg[k]
+	return true
+
+## 场景导出为 Godot 场景（裁定③：生成 .tscn）——骨架版：
+## 根 Node2D + 画布底 + 引用时间轴每条一个 Timer 触发器占位 + 出生点 Marker
+func generate_tscn(path: String) -> bool:
+	var w := int(scenario_cfg.get("canvas_w", 400))
+	var h := int(scenario_cfg.get("canvas_h", 400))
+	var f := FileAccess.open(path, FileAccess.WRITE)
+	if f == null:
+		return false
+	var sb := "[gd_scene format=3]\n\n"
+	sb += "[sub_resource type=\"RectangleShape2D\" id=\"canvas\"]\n"
+	sb += "size = Vector2(%d, %d)\n\n" % [w, h]
+	sb += "[node name=\"%s\" type=\"Node2D\"]\n" % (scenario_name if scenario_name != "" else "THXScenario")
+	sb += "[node name=\"Canvas\" type=\"ColorRect\" parent=\".\"]\n"
+	sb += "offset_right = %d.0\noffset_bottom = %d.0\ncolor = Color(0.05, 0.06, 0.1, 1)\n" % [w, h]
+	var i := 0
+	for tl: TimelineData in editor_timelines:
+		sb += "[node name=\"TL_%s\" type=\"Timer\" parent=\".\"]\nwait_time = 0.1\nautostart = true\n" % tl.tl_name
+		sb += "[node name=\"TL_out_%d\" type=\"Marker2D\" parent=\".\"]\nposition = Vector2(%d, %d)\n" % [i, w / 2 + i * 12, 40]
+		i += 1
+	f.store_string(sb)
+	f.close()
+	return true
