@@ -25,6 +25,9 @@ extends Node
 ## 任意目录）；宿主（游戏）可经 *_OVERRIDE 覆盖到自己的数据目录
 var DATA_DIR := ""      ## .../data（官方表示例/材质/时间轴）
 var SCENES_DIR := ""    ## .../scenes（试炼场/编辑器场景）
+## 【宿主开关 20261113】判定盒像素编辑可用性——内核默认开（裸本体可编辑）；
+## THX 系列宿主（特殊判定盒恒关）在 GameGlobals._ready 设 false（按钮禁用）
+var allow_hitbox_edit := true
 var PROJECTS_DIR := "user://thx_gamekit" ## 【appdata 默认】.thxp/.thx/.thxe 存放处（作者 20261111）
 
 ## 【0.0.9·③ 用户内容文件夹（作者 20261111）】材质/判定盒图/角色贴图/音乐/音效

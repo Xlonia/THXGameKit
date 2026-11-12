@@ -17,8 +17,18 @@ func _ready() -> void:
 	ed.selected_idx = 0 if ed.events.size() > 0 else -1
 	ed._confirm_exit("close") ## close+非窗口=保存链全走且不切场景
 	await get_tree().process_frame
-	var ok1: bool = ed._exit_panel == null and ed._project_path != "" and ed._project_path.ends_with(".thxp")
-	print("  %s 直通退出（面板已撤=%s 静默保存=%s）" % ["PASS" if ok1 else "FAIL", ed._exit_panel == null, ed._project_path])
+	## 【提问恢复 20261113】面板三按钮存在→模拟"保存并退出"点击→保存链
+	var save_btn: Button = null
+	for c in ed._exit_panel.find_children("*", "Button", true, false):
+		if (c as Button).name == "ExitSave":
+			save_btn = c
+	var ok1a: bool = ed._exit_panel != null and save_btn != null
+	if save_btn != null:
+		save_btn.pressed.emit()
+	await get_tree().process_frame
+	var ok1b: bool = ed._project_path != "" and ed._project_path.ends_with(".thxp") and FileAccess.file_exists(ed._project_path)
+	var ok1: bool = ok1a and ok1b
+	print("  %s 退出提问+保存并退出（面板=%s 保存=%s）" % ["PASS" if ok1 else "FAIL", ok1a, ok1b])
 	if not ok1: fails += 1
 	## ②展示画布交互数学
 	var ov := Control.new()

@@ -87,16 +87,17 @@ func _gui_input(event: InputEvent) -> void:
 			var tp := _screen_to_tex(mb.position)
 			var bs := base_tex.get_size()
 			var center_px := bs * 0.5 + spin_center
-			## 中心点命中（±12 显示像素）→ 中心拖动（优先于绘制）
-			if show_spin and _tex_to_screen(center_px).distance_to(mb.position) <= 12.0:
-				_drag_spin = true
-				accept_event()
-				return
-			## 判定盒绘制（编辑模式下左=画右=擦）
+			## 【优先级 20261113（作者报绘制异常）】编辑模式=绘制优先（否则
+			## 中心附近的像素点全部被 ±12px 命中区吞成拖动）；关闭编辑=中心拖动
 			if edit_mode and edit_img != null:
 				_paint_btn = mb.button_index
 				_paint_at(tp)
 				accept_event()
+				return
+			if show_spin and _tex_to_screen(center_px).distance_to(mb.position) <= 12.0:
+				_drag_spin = true
+				accept_event()
+				return
 	elif event is InputEventMouseMotion and (event as InputEventMouseMotion).button_mask != 0:
 		var mm := event as InputEventMouseMotion
 		var tp := _screen_to_tex(mm.position)

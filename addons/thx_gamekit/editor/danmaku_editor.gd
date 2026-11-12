@@ -300,6 +300,10 @@ func _build_privates_page() -> Control:
 	return box
 
 func _notification(what: int) -> void:
+	## 【OS 窗口 X 按钮 20261113】独立进程关窗=走退出提问（不静默丢改动）
+	if what == NOTIFICATION_WM_CLOSE_REQUEST and _in_window_mode():
+		_confirm_exit("close")
+		return
 	if what == NOTIFICATION_EXIT_TREE and not events.is_empty():
 		## 【裸本体防污染 20261112】兜底落盘=官方表写回，仅工程环境执行——
 		## 裸本体写内核 data/ 会把工作集混进内核官方库（作者克隆仓库即被污染）；
@@ -356,7 +360,7 @@ func _build_ui() -> void:
 	_page_holder.offset_top = 58
 	_page_holder.offset_bottom = -52
 	add_child(_page_holder)
-	for tp in [["editor", "编辑器"], ["settings", "设置"], ["probe", "探针"]]:
+	for tp in [["editor", "编辑器"], ["scene", "场景"], ["settings", "设置"], ["probe", "探针"]]:
 		var tb := Button.new()
 		tb.text = tp[1]
 		tb.toggle_mode = true
@@ -458,12 +462,63 @@ func _build_ui() -> void:
 func _show_top_page(key: String) -> void:
 	if key == "settings" and not _top_pages.has("settings"):
 		_top_pages["settings"] = _build_settings_page()
+	if key == "scene" and not _top_pages.has("scene"):
+		_top_pages["scene"] = _build_scene_page()
 	if key == "probe" and not _top_pages.has("probe"):
 		_top_pages["probe"] = _build_probe_page()
 	for k in _top_pages:
 		_top_pages[k].visible = (k == key)
 	if key == "probe":
 		_refresh_probe()
+
+## —— 场景页（作者 20261113 澄清：同 Godot 主屏 2D/3D/脚本 tab 那一层的
+## 工作区标签——规划含 场景/UI 设计、内核功能引用、存档与游戏格式（待裁定）、
+## 资源/机制事件逻辑链（节点图，待设计）。本轮=勾选框占位，深度设计待探讨）
+func _build_scene_page() -> Control:
+	var sc := ScrollContainer.new()
+	sc.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	sc.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	sc.name = "ScenePage"
+	var box := VBoxContainer.new()
+	box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	box.add_theme_constant_override("separation", 10)
+	sc.add_child(box)
+	_page_holder.add_child(sc)
+	sc.visible = false
+	var l0 := Label.new()
+	l0.text = "【场景】——场景/UI 设计·内核功能引用·逻辑链（占位，设计探讨中）"
+	l0.add_theme_font_size_override("font_size", 16)
+	box.add_child(l0)
+	var tip := Label.new()
+	tip.text = "规划（作者 20261111/1113）：①场景与 UI 设计（改场景/把 UI 做成场景）②引用内核插件功能 ③存档与游戏格式设置（做法待裁定）④资源·机制的事件与逻辑链（节点图）。本轮先落全局开关占位。"
+	tip.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	tip.custom_minimum_size = Vector2(560, 0)
+	box.add_child(tip)
+	var l1 := Label.new()
+	l1.text = "全局启用/禁用（勾选框占位）"
+	l1.add_theme_font_size_override("font_size", 14)
+	box.add_child(l1)
+	var c1 := CheckBox.new()
+	c1.text = "特殊判定盒（黑白位图判定）全局启用——游戏工程级开关"
+	c1.button_pressed = Bullet.special_hitbox_enabled
+	c1.toggled.connect(func(on: bool):
+		Bullet.special_hitbox_enabled = on
+		_set_status("特殊判定盒（工程级）：%s——新弹幕生效" % ("开" if on else "关")))
+	box.add_child(c1)
+	var c2 := CheckBox.new()
+	c2.text = "判定盒像素编辑（编辑判定盒按钮）可用"
+	c2.button_pressed = THXKit.allow_hitbox_edit
+	c2.disabled = true ## 工程级禁用走宿主旗标（THX75=false）；占位展示
+	box.add_child(c2)
+	var c3 := CheckBox.new()
+	c3.text = "存档与游戏格式（做法待作者裁定后接入）"
+	c3.disabled = true
+	box.add_child(c3)
+	var c4 := CheckBox.new()
+	c4.text = "事件逻辑链节点图（设计探讨后接入）"
+	c4.disabled = true
+	box.add_child(c4)
+	return sc
 
 ## —— 设置页（③-B：存档与游戏格式 + 内容文件夹配置）——
 func _build_settings_page() -> Control:
@@ -974,6 +1029,8 @@ func _append_common_preview(page: Control, ev: DanmakuEventData) -> void:
 	var ed_b := Button.new()
 	ed_b.text = "编辑判定盒：关"
 	ed_b.toggle_mode = true
+	ed_b.disabled = not THXKit.allow_hitbox_edit ## 【宿主开关】THX 系列禁用
+	ed_b.tooltip_text = "" if THXKit.allow_hitbox_edit else "本工程已禁用判定盒编辑（特殊判定盒=关）"
 	var _ensure_edit_img := func() -> Image:
 		## 可写位图：现有判定盒图（同显示=材质图）或材质同尺寸黑底
 		var src: Image = null
@@ -1591,10 +1648,63 @@ func _draft_restore() -> bool:
 ##   close   窗口模式=关编辑器窗口；非窗口=回标题
 ##   title   回标题画面
 ##   quit    回标题画面（裸本体"退出"语义=离开编辑器；进程退出=标题菜单"退出"）
+## 【提问恢复 20261113（作者：返回标题前保存/不保存提问不能丢）】
+## 自绘面板（编辑器树内，非 OS 窗口）三按钮：保存并退出/不保存退出/取消。
+## 卡死排查分工：语义链（保存/还原/切换）已探针全通；上两轮卡死=交互层
+## ——本轮补 真窗口自动化探针（Input 注入真实点击）定位交互层。
 func _confirm_exit(mode: String) -> void:
 	_close_exit_panel()
-	_exit_save_quiet()
-	_after_exit(mode)
+	_exit_panel = PanelContainer.new()
+	var wrap := MarginContainer.new()
+	for m in ["margin_left", "margin_right", "margin_top", "margin_bottom"]:
+		wrap.add_theme_constant_override(m, 14)
+	_exit_panel.add_child(wrap)
+	var box := VBoxContainer.new()
+	box.add_theme_constant_override("separation", 10)
+	wrap.add_child(box)
+	var t := Label.new()
+	t.text = "退出编辑器"
+	t.add_theme_font_size_override("font_size", 18)
+	box.add_child(t)
+	var info := Label.new()
+	var proj := _project_path if _project_path != "" else String(THXKit.PROJECTS_DIR).path_join("untitled.thxp")
+	info.text = "保存并退出 → 存入工程 %s%s\n不保存退出 → 按 draft.csv 还原上次保存点\n取消 → 留在编辑器" % [
+		proj, "" if _is_project_env() else "\n（当前非游戏工程环境：不写回官方数据表）"]
+	info.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	info.custom_minimum_size = Vector2(380, 0)
+	box.add_child(info)
+	var btns := HBoxContainer.new()
+	btns.add_theme_constant_override("separation", 10)
+	btns.alignment = BoxContainer.ALIGNMENT_END
+	box.add_child(btns)
+	var save_b := Button.new()
+	save_b.name = "ExitSave"
+	save_b.text = "保存并退出"
+	save_b.pressed.connect(func():
+		_exit_save_quiet()
+		_close_exit_panel()
+		_after_exit(mode))
+	btns.add_child(save_b)
+	var drop_b := Button.new()
+	drop_b.name = "ExitDrop"
+	drop_b.text = "不保存退出"
+	drop_b.pressed.connect(func():
+		if not _draft_restore():
+			_set_status("无 draft.csv（从未保存/导出）——直接退出，改动随自动同步保留")
+		_close_exit_panel()
+		_after_exit(mode))
+	btns.add_child(drop_b)
+	var cancel_b := Button.new()
+	cancel_b.name = "ExitCancel"
+	cancel_b.text = "取消"
+	cancel_b.pressed.connect(_close_exit_panel)
+	btns.add_child(cancel_b)
+	add_child(_exit_panel)
+	## 居中（编辑器树内 Control 布局，非窗口 popup）
+	_exit_panel.ready.connect(func():
+		if _exit_panel != null and is_instance_valid(_exit_panel):
+			var vp_sz := get_viewport_rect().size
+			_exit_panel.position = ((vp_sz - _exit_panel.get_minimum_size()) * 0.5).floor())
 
 ## 静默保存（退出路径共用）：收集表单→draft 还原点→存当前工程 .thxp→
 ## 官方数据写回（仅工程环境）
