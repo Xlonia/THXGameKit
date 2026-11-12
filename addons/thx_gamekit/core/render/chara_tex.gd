@@ -20,14 +20,22 @@ static func _scan_dir() -> void:
 	if _dir_scanned:
 		return
 	_dir_scanned = true
-	## 【0.0.9·挂载点无关+用户文件夹】DATA_BASE（THXKit 推送/宿主覆盖）+
-	## THXKit.content_scan_dirs 用户追加目录（后扫者覆盖同名）
+	## 【0.0.9·挂载点无关+用户文件夹】扫描分层 20261112：内核默认 →
+	## 宿主 DATA_BASE → 用户目录（后扫者覆盖同名=用户最优先）。
+	## 旧版宿主在前、content_scan_dirs（含内核默认）在后=内核自带文件
+	## 覆盖宿主（晚汐贴图被内核同名占位图抢注→submodule 内 PNG 宿主
+	## 导入库加载失败→反而缺图）
 	var dirs: Array = []
-	if DATA_BASE != "":
-		dirs.append(DATA_BASE)
 	var main_loop := Engine.get_main_loop()
+	var kit_node: Node = null
 	if main_loop != null and main_loop.root.has_node("THXKit"):
-		dirs.append_array((main_loop.root.get_node("THXKit") as Node).content_scan_dirs("chara_tex"))
+		kit_node = main_loop.root.get_node("THXKit")
+	if kit_node != null:
+		dirs.append((kit_node as Node).DATA_DIR.path_join("textures/chars")) ## 内核默认
+	if DATA_BASE != "":
+		dirs.append(DATA_BASE) ## 宿主（游戏本体数据覆盖内核）
+	if kit_node != null:
+		dirs.append_array((kit_node as Node).content_user_dirs("chara_tex")) ## 用户最优先
 	for scan_dir in dirs:
 		var dir := DirAccess.open(scan_dir)
 		if dir == null:

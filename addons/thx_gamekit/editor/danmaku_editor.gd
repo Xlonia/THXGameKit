@@ -513,6 +513,27 @@ func _build_settings_page() -> Control:
 		_refresh_assets()
 		_set_status("内容文件夹已重扫（材质/角色贴图缓存已失效）"))
 	srow.add_child(reload_b)
+	## 【③-B 深化 20261112】运行开关归入设置页（与设置菜单同一状态源）
+	var sw_row := HBoxContainer.new()
+	sw_row.add_theme_constant_override("separation", 10)
+	box.add_child(sw_row)
+	var shb := Button.new()
+	shb.toggle_mode = true
+	shb.button_pressed = Bullet.special_hitbox_enabled
+	shb.text = "特殊判定盒：%s" % ("开" if shb.button_pressed else "关")
+	shb.pressed.connect(func():
+		Bullet.special_hitbox_enabled = shb.button_pressed
+		shb.text = "特殊判定盒：%s" % ("开" if shb.button_pressed else "关")
+		_set_status("特殊判定盒（黑白位图判定）：%s——仅带 hitbox 列/同显示的弹幕生效，新弹生效" % ("开" if shb.button_pressed else "关")))
+	sw_row.add_child(shb)
+	var spv := Button.new()
+	spv.toggle_mode = true
+	spv.button_pressed = _show_spin_overlay
+	spv.text = "旋转中心覆盖显示：%s" % ("开" if spv.button_pressed else "关")
+	spv.pressed.connect(func():
+		_show_spin_overlay = spv.button_pressed
+		spv.text = "旋转中心覆盖显示：%s" % ("开" if spv.button_pressed else "关"))
+	sw_row.add_child(spv)
 	## 内容文件夹配置（③-B 归入；与标题画面选项页同数据源 THXKit.content_dirs）
 	var l2 := Label.new()
 	l2.text = "【内容文件夹】（用户指定目录；内核默认在前、此处追加在后，后扫者覆盖同名）"
@@ -628,6 +649,14 @@ func _refresh_probe() -> void:
 		if not errs.is_empty():
 			err_n += 1
 	lines.append("编译错误事件：%d/%d" % [err_n, events.size()])
+	## 【③-C 深化 20261112】角色表/时间轴/导入材质/判定盒绑定统计
+	lines.append("角色表：%d 行｜时间轴：%d 条" % [CharaDB.load_all().size(), GameGlobals.editor_timelines.size()])
+	lines.append("导入材质：%d 件（随 .thxp texture/ 打包）" % GameGlobals.editor_textures.size())
+	var hb_n := 0
+	for ev3 in events:
+		if str(ev3.hitbox_name).strip_edges() != "":
+			hb_n += 1
+	lines.append("判定盒绑定：%d 件（含同显示）" % hb_n)
 	out.text = "\n".join(lines)
 
 ## —— 主页面切换（懒建角色/时间轴页）——
@@ -736,7 +765,9 @@ func _build_menubar() -> MenuBar:
 		## 关闭窗口即退出编辑器
 		items = ["新建", "打开(.thxp/.thx/.thxe)", "导入材质", "保存(.thxp 工程)", "导出成品(.thx)", "导出发布包(.thxe)", "关闭编辑器窗口"]
 	else:
-		items = ["新建", "打开(.thxp/.thx/.thxe)", "导入材质", "保存(.thxp 工程)", "导出成品(.thx)", "导出发布包(.thxe)", "返回游戏标题", "退出游戏"]
+		## 【直通退出 20261112】"退出游戏"合并入"返回游戏标题"——所有退出
+		## 路径=静默保存工程+直接回标题（零交互，卡死面=零）
+		items = ["新建", "打开(.thxp/.thx/.thxe)", "导入材质", "保存(.thxp 工程)", "导出成品(.thx)", "导出发布包(.thxe)", "返回游戏标题"]
 		if not _is_project_env():
 			items.erase("导出为官方数据") ## 【内核化】无游戏数据目录=官方数据导出无意义（防污染仓库）
 	for i in items.size():
@@ -933,6 +964,57 @@ func _append_common_preview(page: Control, ev: DanmakuEventData) -> void:
 		sp_b.text = "旋转中心显示：%s" % ("开" if sp_b.button_pressed else "关")
 		ov.queue_redraw())
 	btns.add_child(sp_b)
+	## 【交互 20261112（作者规格）】中心拖动（恒 0.5 网格）+判定盒左绘右擦
+	ov.spin_changed.connect(func(sx: float, sy: float):
+		ev.spin_x = sx
+		ev.spin_y = sy
+		ev.spin_x_s = ""
+		ev.spin_y_s = ""
+		_set_status("旋转-运动中心已设为 (%.1f, %.1f)（0.5 像素网格）" % [sx, sy]))
+	var ed_b := Button.new()
+	ed_b.text = "编辑判定盒：关"
+	ed_b.toggle_mode = true
+	var _ensure_edit_img := func() -> Image:
+		## 可写位图：现有判定盒图（同显示=材质图）或材质同尺寸黑底
+		var src: Image = null
+		var et: Texture2D = null
+		if ev.hitbox_name == DanmakuEventData.HITBOX_SAME:
+			et = DanmakuTex.resolve(ev.texture)
+		elif str(ev.hitbox_name).strip_edges() != "":
+			et = DanmakuTex.resolve(ev.hitbox_name)
+		if et != null and et.get_image() != null:
+			src = et.get_image()
+			if src.is_compressed():
+				src = src.duplicate()
+				src.decompress()
+			src = src.duplicate() ## 避免写进共享资源
+		var tex: Texture2D = DanmakuTex.resolve(ev.texture)
+		if src == null and tex != null:
+			src = Image.create(tex.get_width(), tex.get_height(), false, Image.FORMAT_RGBA8)
+			src.fill(Color(0, 0, 0, 1))
+		return src
+	ed_b.pressed.connect(func():
+		ov.edit_mode = ed_b.button_pressed
+		ed_b.text = "编辑判定盒：%s" % ("开" if ed_b.button_pressed else "关")
+		if ov.edit_mode:
+			ov.edit_img = _ensure_edit_img.call()
+			_set_status("判定盒编辑：左键画白（判定）/右键擦黑（无判定）——松开即存入材质库并绑定本事件")
+		else:
+			ov.edit_img = null
+		ov.queue_redraw())
+	btns.add_child(ed_b)
+	## 绘制提交：PNG 存 editor_textures（随 .thxp texture/ 打包）+绑定 hitbox_name
+	ov.hitbox_edited.connect(func(img: Image):
+		if ev.event_name.strip_edges() == "":
+			_set_status("判定盒保存失败：事件名为空，先命名事件")
+			return
+		var hn := "hitbox_%s" % ev.event_name
+		var png := img.save_png_to_buffer()
+		GameGlobals.editor_textures[hn] = png
+		DanmakuTex.runtime_cache[hn] = ImageTexture.create_from_image(img)
+		ev.hitbox_name = hn
+		refresh.call()
+		_set_status("判定盒已保存并绑定：%s（%d×%d）" % [hn, img.get_width(), img.get_height()]))
 	ev.bind_preview_refresh(refresh)
 
 ## =============================================================
@@ -1501,66 +1583,32 @@ func _draft_restore() -> bool:
 ## 退出确认：保存并退出 / 不保存退出（按 draft 还原）/ 取消
 ## 【卡死修复 20261112（作者：无论是否保存都卡死）】ConfirmationDialog（内嵌
 ## OS 子窗口）换自绘面板——语义层探针无卡点（30-103ms 全通），卡死=内嵌窗口
-## 交互层（本项目弹窗坑同族：从不显示/开屏误弹/gui_embed_subwindows）；
-## 自绘 PanelContainer 挂编辑器树内，无窗口层依赖。
-## 【保存语义（作者 20261112）】保存并退出=存当前工程 .thxp（无工程路径→
-## PROJECTS_DIR/untitled.thxp）；官方数据写回仅工程环境执行（裸本体写内核
-## data/=污染官方库）；draft 机制保留。
+## 交互层（本项目弹窗坑同族：从不显示/开屏误弹/gui_embed_subwindows）。
+## 【直通退出 20261112（作者二次反馈：自绘面板仍卡死；退出应直接返回标题）】
+## 确认面板交互层整体撤除——所有退出路径=**静默保存当前工程 .thxp
+## （draft 机制保留）+ 直接返回标题画面**，零交互环节（卡死面=零）。
+## 退出行为：
+##   close   窗口模式=关编辑器窗口；非窗口=回标题
+##   title   回标题画面
+##   quit    回标题画面（裸本体"退出"语义=离开编辑器；进程退出=标题菜单"退出"）
 func _confirm_exit(mode: String) -> void:
 	_close_exit_panel()
-	_exit_panel = PanelContainer.new()
-	var wrap := MarginContainer.new()
-	for m in ["margin_left", "margin_right", "margin_top", "margin_bottom"]:
-		wrap.add_theme_constant_override(m, 14)
-	_exit_panel.add_child(wrap)
-	var box := VBoxContainer.new()
-	box.add_theme_constant_override("separation", 10)
-	wrap.add_child(box)
-	var t := Label.new()
-	t.text = "退出编辑器"
-	t.add_theme_font_size_override("font_size", 18)
-	box.add_child(t)
-	var info := Label.new()
+	_exit_save_quiet()
+	_after_exit(mode)
+
+## 静默保存（退出路径共用）：收集表单→draft 还原点→存当前工程 .thxp→
+## 官方数据写回（仅工程环境）
+func _exit_save_quiet() -> void:
+	if events.is_empty():
+		return
+	_collect_form()
+	_draft_stash() ## 还原点=保存前（draft 机制保留）
 	var proj := _project_path if _project_path != "" else String(THXKit.PROJECTS_DIR).path_join("untitled.thxp")
-	info.text = "保存并退出 → 存入工程 %s%s\n不保存退出 → 按 draft.csv 还原上次保存点\n取消 → 留在编辑器" % [
-		proj, "" if _is_project_env() else "\n（当前非游戏工程环境：不写回官方数据表）"]
-	info.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	info.custom_minimum_size = Vector2(380, 0)
-	box.add_child(info)
-	var btns := HBoxContainer.new()
-	btns.add_theme_constant_override("separation", 10)
-	btns.alignment = BoxContainer.ALIGNMENT_END
-	box.add_child(btns)
-	var save_b := Button.new()
-	save_b.text = "保存并退出"
-	save_b.pressed.connect(func():
-		_collect_form()
-		_draft_stash() ## 还原点=保存前（draft 机制保留）
-		_save_package(proj, "thxp")
-		_project_path = proj
-		if _is_project_env():
-			_on_export_official() ## 官方数据写回=仅工程环境
-		_close_exit_panel()
-		_after_exit(mode))
-	btns.add_child(save_b)
-	var drop_b := Button.new()
-	drop_b.text = "不保存退出"
-	drop_b.pressed.connect(func():
-		if not _draft_restore():
-			_set_status("无 draft.csv（从未保存/导出）——直接退出，改动随自动同步保留")
-		_close_exit_panel()
-		_after_exit(mode))
-	btns.add_child(drop_b)
-	var cancel_b := Button.new()
-	cancel_b.text = "取消"
-	cancel_b.pressed.connect(_close_exit_panel)
-	btns.add_child(cancel_b)
-	add_child(_exit_panel)
-	## 居中（编辑器树内 Control 布局，非窗口 popup）
-	_exit_panel.ready.connect(func():
-		if _exit_panel != null and is_instance_valid(_exit_panel):
-			var vp_sz := get_viewport_rect().size
-			_exit_panel.position = ((vp_sz - _exit_panel.get_minimum_size()) * 0.5).floor())
+	_save_package(proj, "thxp")
+	_project_path = proj
+	if _is_project_env():
+		_on_export_official() ## 官方数据写回=仅工程环境
+	_set_status("已静默保存工程：%s" % proj)
 
 func _close_exit_panel() -> void:
 	if _exit_panel != null and is_instance_valid(_exit_panel):
@@ -2161,9 +2209,9 @@ func _build_formation_page() -> Control:
 	t.text = "杂兵排布预设（公式可编辑；保存后写入 formation_override；custom_a/b 释义见下）"
 	t.add_theme_font_size_override("font_size", 16)
 	box.add_child(t)
-	var ovr := PrivateFormation.load_override()
-	for preset_name in PrivateFormation.PRESETS:
-		var pr: Dictionary = PrivateFormation.PRESETS[preset_name]
+	var ovr := ThxFormationPresets.load_override()
+	for preset_name in ThxFormationPresets.PRESETS:
+		var pr: Dictionary = ThxFormationPresets.PRESETS[preset_name]
 		var l := Label.new()
 		l.text = "【%s】" % preset_name
 		box.add_child(l)
@@ -2192,23 +2240,23 @@ func _build_formation_page() -> Control:
 		sb.text = "保存本预设修改"
 		var pname: String = preset_name
 		sb.pressed.connect(func():
-			var o := PrivateFormation.load_override()
+			var o := ThxFormationPresets.load_override()
 			for f2 in fields:
 				var v := str(edits[f2].text).strip_edges().replace("#", "")
 				if v == "":
 					o.erase("%s.%s" % [pname, f2])
 				else:
 					o["%s.%s" % [pname, f2]] = v
-			PrivateFormation.save_override(o)
+			ThxFormationPresets.save_override(o)
 			_set_status("排布 %s 修改已保存（formation_override）" % pname))
 		brow.add_child(sb)
 		var rb := Button.new()
 		rb.text = "恢复默认"
 		rb.pressed.connect(func():
-			var o := PrivateFormation.load_override()
+			var o := ThxFormationPresets.load_override()
 			for f3 in fields:
 				o.erase("%s.%s" % [pname, f3])
-			PrivateFormation.save_override(o)
+			ThxFormationPresets.save_override(o)
 			for f4 in fields:
 				edits[f4].text = str(pr.get(f4, ""))
 			_set_status("排布 %s 已恢复默认" % pname))

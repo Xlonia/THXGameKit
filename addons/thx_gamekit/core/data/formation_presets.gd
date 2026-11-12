@@ -1,10 +1,14 @@
-class_name PrivateFormation
+class_name ThxFormationPresets
 extends RefCounted
 ## =============================================================
 ## 杂兵排布——**内核作者编辑面**（0.0.9·内核化 20261111）：
 ##   预设公式库 + 玩家覆盖层持久化 + 表达式变量表（弹幕编辑器排布页所需）。
 ## 【分层】运行时 stepping（step()/setup()，引用实体类型）属玩法插件——
-##   内核只承载公式数据与覆盖层 IO（本文件即 th75 同名类的静态半部）。
+##   内核只承载公式数据与覆盖层 IO（玩法插件同名运行时类经
+##   ThxFormationPresets.PRESETS 取本表）。
+## 【class_name 冲突修复 20261112】原名 PrivateFormation 与玩法插件运行时
+##   版同名——全局类注册竞争抢注=杂兵排布全崩（has_method("setup")=false，
+##   ents 塌缩）。改名让位运行时类；编辑器调用点同步改 ThxFormationPresets.*。
 ## =============================================================
 
 const PRESETS := {

@@ -8,7 +8,8 @@ extends Node
 func _ready() -> void:
 	var fails := 0
 	GameGlobals.editor_events = []
-	var ed: Control = (load("res://scenes/danmaku_editor.tscn") as PackedScene).instantiate()
+	var ed: Control = Control.new() ## 脚本直实例化（tscn ext_resource 宿主失效坑）
+	ed.set_script(load(THXKit.kpath("res://addons/thx_gamekit/editor/danmaku_editor.gd")))
 	add_child(ed)
 	await get_tree().process_frame
 	await get_tree().process_frame

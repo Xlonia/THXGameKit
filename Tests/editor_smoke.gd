@@ -6,19 +6,21 @@ extends Node
 func _ready() -> void:
 	var fails := 0
 	## ①编辑器实例化（作为主场景的替身——直接 add_child）
-	var ed: Control = (load("res://scenes/danmaku_editor.tscn") as PackedScene).instantiate()
+	var ed: Control = Control.new() ## 脚本直实例化（tscn ext_resource 宿主失效坑）
+	ed.set_script(load(THXKit.kpath("res://addons/thx_gamekit/editor/danmaku_editor.gd")))
 	add_child(ed)
 	await get_tree().process_frame
 	await get_tree().process_frame
-	var ok1: bool = is_instance_valid(ed) and THXKit.editor_events.size() > 0
-	print("  %s 编辑器实例化+事件装载（工作集 %d 件）" % ["PASS" if ok1 else "FAIL", THXKit.editor_events.size()])
+	var ok1: bool = is_instance_valid(ed) and GameGlobals.editor_events.size() > 0 ## 断言走 GameGlobals（kit=委托THXKit / th75=宿主自有——编辑器真实工作集）
+	print("  %s 编辑器实例化+事件装载（工作集 %d 件）" % ["PASS" if ok1 else "FAIL", GameGlobals.editor_events.size()])
 	if not ok1: fails += 1
 	ed.queue_free()
 	await get_tree().process_frame
 	## ②试炼场出弹
 	GameGlobals.preview_event_name = "demo_youshio1"
 	GameGlobals.arena_mode = "preview"
-	var tg: Node2D = (load("res://scenes/trial_ground.tscn") as PackedScene).instantiate()
+	var tg: Node2D = Node2D.new() ## 脚本直实例化
+	tg.set_script(load(THXKit.kpath("res://addons/thx_gamekit/editor/trial_ground.gd")))
 	add_child(tg)
 	await get_tree().process_frame
 	for k in 180:
@@ -29,7 +31,8 @@ func _ready() -> void:
 	## ③退出试炼场=指向编辑器场景（arena_mode 复位断言——稳定版；
 	## 真实场景往返由 F5 可视验证，探针不做 change_scene 实切）
 	## ③签名体系：thxe 强校验（缺清单拒载/篡改拒载）+ thx 签名可选
-	var ed2: Control = (load("res://scenes/danmaku_editor.tscn") as PackedScene).instantiate()
+	var ed2: Control = Control.new() ## 脚本直实例化
+	ed2.set_script(load(THXKit.kpath("res://addons/thx_gamekit/editor/danmaku_editor.gd")))
 	add_child(ed2)
 	await get_tree().process_frame
 	ed2._save_package("user://kit_sig.thxe", "thxe")

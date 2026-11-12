@@ -8,7 +8,7 @@ extends Node
 func _ready() -> void:
 	var fails := 0
 	## ①标题实例化
-	var tm: Control = (load("res://addons/thx_gamekit/editor/title_menu.gd") as GDScript).new()
+	var tm: Control = (load(THXKit.kpath("res://addons/thx_gamekit/editor/title_menu.gd")) as GDScript).new()
 	add_child(tm)
 	await get_tree().process_frame
 	var ok1: bool = is_instance_valid(tm)
@@ -18,7 +18,8 @@ func _ready() -> void:
 	await get_tree().process_frame
 	## ②编辑器通用参数页无 dmg_mode 选取控件（N/I/S 不可再选）
 	GameGlobals.editor_events = []
-	var ed: Control = (load("res://scenes/danmaku_editor.tscn") as PackedScene).instantiate()
+	var ed: Control = Control.new() ## 脚本直实例化（tscn ext_resource 宿主失效坑）
+	ed.set_script(load(THXKit.kpath("res://addons/thx_gamekit/editor/danmaku_editor.gd")))
 	add_child(ed)
 	await get_tree().process_frame
 	await get_tree().process_frame
@@ -38,7 +39,7 @@ func _ready() -> void:
 	if not ok3: fails += 1
 	## ④覆盖画布开关变量
 	var ov := Control.new()
-	ov.set_script(load("res://addons/thx_gamekit/editor/preview_overlay.gd"))
+	ov.set_script(load(THXKit.kpath("res://addons/thx_gamekit/editor/preview_overlay.gd")))
 	var ok4: bool = "show_hitbox" in ov and "show_spin" in ov
 	print("  %s 覆盖画布开关变量（show_hitbox/show_spin）" % ["PASS" if ok4 else "FAIL"])
 	if not ok4: fails += 1
@@ -47,7 +48,8 @@ func _ready() -> void:
 	await get_tree().process_frame
 	## ⑤试炼场常驻退出按钮
 	GameGlobals.preview_event_name = "demo_youshio1"
-	var tg := (load("res://scenes/trial_ground.tscn") as PackedScene).instantiate()
+	var tg: Node2D = Node2D.new() ## 脚本直实例化
+	tg.set_script(load(THXKit.kpath("res://addons/thx_gamekit/editor/trial_ground.gd")))
 	add_child(tg)
 	await get_tree().process_frame
 	var found_exit := false

@@ -42,6 +42,13 @@ func content_scan_dirs(kind: String) -> Array:
 			out.append(DATA_DIR.path_join("textures/chars"))
 		"audio":
 			out.append(DATA_DIR.path_join("audio"))
+	out.append_array(content_user_dirs(kind))
+	return out
+
+## 【用户目录单独提取 20261112】宿主/用户优先的扫描顺序需要拆层：
+## 内核默认 → 宿主 DATA_BASE → 用户（后扫者覆盖同名=用户最优先）
+func content_user_dirs(kind: String) -> Array:
+	var out: Array = []
 	for d in content_dirs.get(kind, []):
 		var abs: String = d
 		if not abs.begins_with("res://") and not abs.begins_with("user://"):

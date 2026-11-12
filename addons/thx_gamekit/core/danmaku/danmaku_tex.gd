@@ -43,15 +43,23 @@ static func _scan_official_once() -> void:
 	if _official_scanned:
 		return
 	_official_scanned = true
-	## 【DATA_BASE 语义=材质根目录本身】+ THXKit.content_scan_dirs 用户追加
-	## 目录（后扫者覆盖同名——用户文件夹优先）；.import 不收
+	## 【DATA_BASE 语义=材质根目录本身】+ THXKit 用户追加
+	## 目录（后扫者覆盖同名）；.import 不收
+	## 【扫描分层 20261112】内核默认 → 宿主 DATA_BASE → 硬编码兜底 →
+	## 用户目录（最后=最优先）。旧版宿主在前、content_scan_dirs（含内核
+	## 默认）在后=内核自带文件覆盖宿主（晚汐贴图被内核同名占位图抢注）
 	var dirs: Array = []
-	if DATA_BASE != "":
-		dirs.append(DATA_BASE)
-	dirs.append("res://gameAssetBase/shooting/danmaku16pxs")
 	var main_loop := Engine.get_main_loop()
+	var kit_node: Node = null
 	if main_loop != null and main_loop.root.has_node("THXKit"):
-		dirs.append_array((main_loop.root.get_node("THXKit") as Node).content_scan_dirs("danmaku_tex"))
+		kit_node = main_loop.root.get_node("THXKit")
+	if kit_node != null:
+		dirs.append((kit_node as Node).DATA_DIR.path_join("textures/danmaku16pxs")) ## 内核默认
+	if DATA_BASE != "":
+		dirs.append(DATA_BASE) ## 宿主（游戏本体数据覆盖内核）
+	dirs.append("res://gameAssetBase/shooting/danmaku16pxs") ## 硬编码兜底（th75 官方库）
+	if kit_node != null:
+		dirs.append_array((kit_node as Node).content_user_dirs("danmaku_tex")) ## 用户最优先
 	for scan_dir in dirs:
 		var dir := DirAccess.open(scan_dir)
 		if dir == null:
