@@ -6,11 +6,20 @@ extends Node
 var _frames := 0
 var _phase := "boot"
 var _ed: Control = null
+var _probe_win: Window = null
 var _t0 := 0
 func _ready() -> void:
+	## 【窗口模式 20261114（作者方向）】编辑器真放 OS Window 里——退出=关窗
+	## （零场景切换）；点击"保存并退出"后断言窗口释放
 	_ed = Control.new()
 	_ed.set_script(load(THXKit.kpath("res://addons/thx_gamekit/editor/danmaku_editor.gd")))
-	add_child(_ed)
+	var w := Window.new()
+	w.title = "probe editor"
+	w.size = Vector2i(1280, 800)
+	w.add_child(_ed)
+	add_child(w)
+	w.popup_centered()
+	_probe_win = w
 	await get_tree().process_frame
 	await get_tree().process_frame
 	if _ed.events.is_empty():
@@ -66,14 +75,13 @@ func _process(_d: float) -> void:
 	if _phase != "wait_scene":
 		return
 	_frames += 1
-	var cs := get_tree().current_scene
-	if cs != null and cs.name == "TitleMenu":
-		print("WINDOW_EXIT_OK 场景已切标题（%d 帧/%d ms 内）" % [_frames, Time.get_ticks_msec() - _t0])
+	## 窗口模式判定：探针窗口被释放（编辑器关窗退出=作者方向的零场景切换路径）
+	if _probe_win == null or not is_instance_valid(_probe_win):
+		print("WINDOW_EXIT_OK 窗口已关（编辑器窗口模式退出=%d 帧/%d ms 内）" % [_frames, Time.get_ticks_msec() - _t0])
 		set_process(false)
 		get_tree().quit(0)
 	elif _frames > 300: ## 5 秒 @60fps
-		print("WINDOW_FAIL 5 秒未切场景（面板=%s 场景=%s 聚焦=%s 鼠标=%s）" % [
-			str(_ed._exit_panel), cs.name if cs != null else "null",
-			get_window().has_focus(), str(get_window().get_mouse_position())]) ## 鼠标=窗口系
+		print("WINDOW_FAIL 5 秒未关窗（面板=%s 窗口=%s）" % [
+			str(_ed._exit_panel), str(_probe_win)])
 		set_process(false)
 		get_tree().quit(1)

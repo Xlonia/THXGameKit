@@ -357,56 +357,78 @@ var scenario_cfg := {
 }
 const SCENARIO_DIR := "user://thx_gamekit/scenarios"
 
-## 保存场景包（.thxs）：scenario.json（名称/配置/时间轴引用/节点图占位）
-## + timelines/（引用的时间轴 CSV 描述）
+## 【.thxs=纯文本（作者裁定 20261114：原文不压缩，全部文字搞定）】
+## 层级：时间轴是 thxs 的下属（thxs 内 [timeline:*] 段）；thxs 被 thxp/thxe 收纳。
 func save_scenario(path: String) -> bool:
-	var zw := ZIPPacker.new()
-	if zw.open(path) != OK:
-		push_warning("[THXKit] 场景包打开失败：%s" % path)
-		return false
-	var tl_refs := []
-	var tl_payload := {}
+	var lines: Array[String] = []
+	lines.append("# THXScenario v1（纯文本场景包）")
+	lines.append("[scenario]")
+	lines.append("name=%s" % scenario_name)
+	for k in scenario_cfg:
+		lines.append("%s=%s" % [k, str(scenario_cfg[k])])
+	## 时间轴下属段（原文可读；tick=事件名;事件名）
 	for tl: TimelineData in editor_timelines:
-		tl_refs.append(tl.tl_name)
-		## 时间轴载荷=JSON（ticks→事件名数组；to_gd 是 .gd 描述体不适宜包内数据）
-		var tj := {"name": tl.tl_name, "ticks": {}}
+		lines.append("")
+		lines.append("[timeline:%s]" % tl.tl_name)
 		for tick in tl.ticks:
-			tj["ticks"][str(tick)] = Array(tl.ticks[tick])
-		tl_payload["timelines/%s.json" % tl.tl_name] = JSON.stringify(tj, "	")
-	var meta := {
-		"format": "thxs", "version": 1,
-		"name": scenario_name, "cfg": scenario_cfg,
-		"timelines": tl_refs,
-		"graph": {}, ## 逻辑链节点图（占位——设计探讨后接入）
-	}
-	zw.start_file("scenario.json")
-	zw.write_file(JSON.stringify(meta, "\t").to_utf8_buffer())
-	zw.close_file()
-	for k in tl_payload:
-		zw.start_file(k)
-		zw.write_file(str(tl_payload[k]).to_utf8_buffer())
-		zw.close_file()
-	zw.close()
+			lines.append("%s=%s" % [str(tick), ";".join(tl.ticks[tick])])
+	lines.append("")
+	lines.append("[graph]")
+	lines.append("# 逻辑链节点图（占位——设计探讨后接入）")
+	var f := FileAccess.open(path, FileAccess.WRITE)
+	if f == null:
+		push_warning("[THXKit] 场景文本写入失败：%s" % path)
+		return false
+	f.store_string("
+".join(lines))
+	f.close()
 	return true
 
-## 载入场景包（.thxs）：meta 回读（场景名/配置）+时间轴进工作集
+## 载入场景文本（.thxs）：段式解析——[scenario] 配置+[timeline:*] 时间轴重建
 func load_scenario(path: String) -> bool:
-	var zr := ZIPReader.new()
-	if zr.open(path) != OK:
-		push_warning("[THXKit] 场景包打开失败：%s" % path)
+	if not FileAccess.file_exists(path):
+		push_warning("[THXKit] 场景文本不存在：%s" % path)
 		return false
-	if not zr.file_exists("scenario.json"):
-		zr.close()
-		return false
-	var meta: Variant = JSON.parse_string(zr.read_file("scenario.json").get_string_from_utf8())
-	zr.close()
-	if typeof(meta) != TYPE_DICTIONARY or str(meta.get("format")) != "thxs":
-		return false
-	scenario_name = str(meta.get("name", ""))
-	var cfg: Variant = meta.get("cfg", {})
-	if typeof(cfg) == TYPE_DICTIONARY:
-		for k in cfg:
-			scenario_cfg[k] = cfg[k]
+	var text := FileAccess.get_file_as_string(path)
+	var cur_tl: TimelineData = null
+	var in_graph := false
+	for raw in text.split("
+"):
+		var line := raw.strip_edges()
+		if line == "" or line.begins_with("#"):
+			continue
+		if line.begins_with("[timeline:") and line.ends_with("]"):
+			var nm: String = line.substr(10, line.length() - 11)
+			cur_tl = resolve_timeline(nm)
+			if cur_tl == null:
+				cur_tl = TimelineData.new()
+				cur_tl.tl_name = nm
+				editor_timelines.append(cur_tl)
+			continue
+		if line == "[scenario]":
+			cur_tl = null
+			in_graph = false
+			continue
+		if line == "[graph]":
+			cur_tl = null
+			in_graph = true
+			continue
+		var eq := line.find("=")
+		if eq <= 0:
+			continue
+		var key := line.substr(0, eq).strip_edges()
+		var val := line.substr(eq + 1).strip_edges()
+		if cur_tl != null:
+			## 时间轴 tick 行
+			var tick := int(key)
+			cur_tl.ticks[tick] = PackedStringArray(val.split(";", false))
+		elif in_graph:
+			pass ## 节点图占位
+		elif key == "name":
+			scenario_name = val
+		else:
+			## cfg 数值化（数字尽量转）
+			scenario_cfg[key] = val.to_float() if val.is_valid_float() else val
 	return true
 
 ## 场景导出为 Godot 场景（裁定③：生成 .tscn）——骨架版：
@@ -417,16 +439,31 @@ func generate_tscn(path: String) -> bool:
 	var f := FileAccess.open(path, FileAccess.WRITE)
 	if f == null:
 		return false
-	var sb := "[gd_scene format=3]\n\n"
-	sb += "[sub_resource type=\"RectangleShape2D\" id=\"canvas\"]\n"
-	sb += "size = Vector2(%d, %d)\n\n" % [w, h]
-	sb += "[node name=\"%s\" type=\"Node2D\"]\n" % (scenario_name if scenario_name != "" else "THXScenario")
-	sb += "[node name=\"Canvas\" type=\"ColorRect\" parent=\".\"]\n"
-	sb += "offset_right = %d.0\noffset_bottom = %d.0\ncolor = Color(0.05, 0.06, 0.1, 1)\n" % [w, h]
+	var sb := "[gd_scene format=3]
+
+"
+	sb += "[sub_resource type=\"RectangleShape2D\" id=\"canvas\"]
+"
+	sb += "size = Vector2(%d, %d)
+
+" % [w, h]
+	sb += "[node name=\"%s\" type=\"Node2D\"]
+" % (scenario_name if scenario_name != "" else "THXScenario")
+	sb += "[node name=\"Canvas\" type=\"ColorRect\" parent=\".\"]
+"
+	sb += "offset_right = %d.0
+offset_bottom = %d.0
+color = Color(0.05, 0.06, 0.1, 1)
+" % [w, h]
 	var i := 0
 	for tl: TimelineData in editor_timelines:
-		sb += "[node name=\"TL_%s\" type=\"Timer\" parent=\".\"]\nwait_time = 0.1\nautostart = true\n" % tl.tl_name
-		sb += "[node name=\"TL_out_%d\" type=\"Marker2D\" parent=\".\"]\nposition = Vector2(%d, %d)\n" % [i, w / 2 + i * 12, 40]
+		sb += "[node name=\"TL_%s\" type=\"Timer\" parent=\".\"]
+wait_time = 0.1
+autostart = true
+" % tl.tl_name
+		sb += "[node name=\"TL_out_%d\" type=\"Marker2D\" parent=\".\"]
+position = Vector2(%d, %d)
+" % [i, w / 2 + i * 12, 40]
 		i += 1
 	f.store_string(sb)
 	f.close()

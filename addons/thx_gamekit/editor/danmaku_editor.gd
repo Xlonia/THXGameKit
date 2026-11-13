@@ -1685,14 +1685,15 @@ func _close_exit_panel() -> void:
 	_exit_panel = null
 
 func _after_exit(mode: String) -> void:
+	## 【窗口化 20261114（作者方向）】窗口模式（标题弹出的 OS 窗口）=
+	## **关自身窗口**（主窗常驻）——零场景切换；替换主窗模式（th75 宿主
+	## 预览）保持旧路由
 	match mode:
-		"close":
+		"close", "title", "quit":
 			if _in_window_mode():
 				(get_parent() as Window).queue_free()
-		"title":
-			GameGlobals.goto_scene("res://scenes/title_menu.tscn")
-		"quit":
-			get_tree().quit()
+			else:
+				GameGlobals.goto_scene("res://scenes/title_menu.tscn")
 
 func _save_package(path: String, fmt: String) -> void:
 	## =============================================================
@@ -1724,6 +1725,12 @@ func _save_package(path: String, fmt: String) -> void:
 		payload["danmaku/%s.gd" % tl.tl_name] = tl.to_gd().to_utf8_buffer()
 	for tex_name in GameGlobals.editor_textures:
 		payload["texture/%s.png" % tex_name] = GameGlobals.editor_textures[tex_name]
+	## 【层级收纳 20261114（作者裁定）】.thxs 被 .thxp/.thxe 收纳——当前场景
+	## 非空时写入 scenarios/<名>.thxs（纯文本随包）
+	if THXKit.scenario_name != "":
+		var scn_path := THXKit.SCENARIO_DIR.path_join(THXKit.scenario_name + ".thxs")
+		if FileAccess.file_exists(scn_path):
+			payload["scenarios/%s.thxs" % THXKit.scenario_name] = FileAccess.get_file_as_string(scn_path)
 	if fmt != "thx":
 		for pair in [["characters.csv", CharaDB.csv_path()], ["privates.csv", CharaDB.privates_path()]]:
 			if FileAccess.file_exists(pair[1]):
@@ -1923,7 +1930,19 @@ func _on_preview() -> void:
 	## 【0.0.9·预览（作者 20261110 终裁=0.0.7-legacy/0.0.8 行为）】goto_scene
 	## 替换**主窗口**为试炼场（编辑器子窗口=真 OS 窗口保持；gui_embed_subwindows
 	## 已复位到 _ready）；退出试炼场=Esc 面板按钮回本场景（编辑器 _ready 重载工作集）
-	GameGlobals.goto_scene("res://scenes/trial_ground.tscn")
+	if _in_window_mode():
+		## 【窗口化】试炼场=独立 OS 窗口（编辑器窗口不动；退出=关窗）
+		var tw := Window.new()
+		tw.title = "试炼场 — %s" % GameGlobals.preview_event_name
+		tw.size = Vector2i(560, 560)
+		var tg := Control.new()
+		tg.set_script(load(THXKit.kpath("res://addons/thx_gamekit/editor/trial_ground.gd")))
+		tw.add_child(tg)
+		add_child(tw)
+		tw.popup_centered()
+		tw.close_requested.connect(func(): tw.queue_free())
+	else:
+		GameGlobals.goto_scene("res://scenes/trial_ground.tscn")
 
 ## =============================================================
 ## 运算/参数引入工具浮窗（作者图示重做 2026-10-04）：

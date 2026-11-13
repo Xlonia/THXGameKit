@@ -81,9 +81,14 @@ func _on_pause_btn(txt: String) -> void:
 		"解除暂停":
 			pause_panel.visible = false
 		"退出试炼场":
-			## 【替换主窗口】回编辑器场景（工作集经 THXKit.editor_events 保留）
+			## 【窗口化 20261114】窗口模式=关自身窗（编辑器窗常驻）；
+			## 替换主窗模式（th75 宿主预览）=旧路由回编辑器场景
 			GameGlobals.arena_mode = "editor"
-			GameGlobals.goto_scene("res://scenes/danmaku_editor.tscn")
+			var w := get_window()
+			if w != null and w != get_tree().root and get_parent() is Window:
+				w.queue_free()
+			else:
+				GameGlobals.goto_scene("res://scenes/danmaku_editor.tscn")
 
 func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventKey and event.pressed and event.keycode == KEY_ESCAPE and not event.echo:

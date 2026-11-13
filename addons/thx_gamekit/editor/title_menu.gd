@@ -75,11 +75,25 @@ func _build_bg() -> void:
 	deco.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	add_child(deco)
 
+## 【窗口化 20261114（作者方向）】编辑器=独立 OS 窗口（本标题画面常驻主窗
+## 不被替换）——编辑器退出=关窗，绕开 change_scene 全链（卡死面=零）
+func _open_editor_window() -> void:
+	var w := Window.new()
+	w.title = "弹幕编辑器 — THXGameKit"
+	w.size = Vector2i(1280, 800)
+	var ed := Control.new()
+	var self_dir: String = get_script().resource_path.get_base_dir()
+	ed.set_script(load(self_dir.path_join("danmaku_editor.gd")))
+	w.add_child(ed)
+	add_child(w)
+	w.popup_centered()
+	w.close_requested.connect(func(): w.queue_free())
+
 func _on_menu(id: String) -> void:
 	_close_panel()
 	match id:
 		"editor":
-			GameGlobals.goto_scene("res://scenes/danmaku_editor.tscn")
+			_open_editor_window()
 		"docs":
 			_open_docs()
 		"options":

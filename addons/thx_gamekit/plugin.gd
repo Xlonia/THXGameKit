@@ -19,12 +19,10 @@ func _make_visible(visible: bool) -> void:
 	if _main_screen == null:
 		_main_screen = Control.new()
 		_main_screen.name = "THXGameKitScenario"
-		var scr_path := "res://addons/thx_gamekit/editor/scenario_editor.gd"
-		## 挂载点无关：submodule 情形 kit.gd 在宿主 autoload 推导实际路径
-		var kit := get_tree().root.get_node_or_null("THXKit")
-		if kit != null and kit.has_method("kpath"):
-			scr_path = kit.kpath(scr_path)
-		_main_screen.set_script(load(scr_path))
+		## 【路径自推导 20261114】编辑器环境 autoload（THXKit）不保证存在——
+		## 从 plugin.gd 自身位置推导（挂载点无关）：…/kit/addons/thx_gamekit/plugin.gd
+		var self_dir: String = get_script().resource_path.get_base_dir()
+		_main_screen.set_script(load(self_dir.path_join("editor/scenario_editor.gd")))
 		get_editor_interface().get_editor_main_screen().add_child(_main_screen)
 		_main_screen.hide()
 	_main_screen.visible = visible
