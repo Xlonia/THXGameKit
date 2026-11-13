@@ -117,6 +117,8 @@ func _on_menu(id: String) -> void:
 			_on_continue()
 		"playthxe":
 			_open_thxe_dialog()
+		"editor":
+			GameGlobals.goto_scene("res://scenes/danmaku_editor.tscn") ## 【m47 rebase 事故恢复】editor 分支被冲突吞掉=点编辑器丝毫无反应
 		"docs":
 			_open_docs()
 		"options":
