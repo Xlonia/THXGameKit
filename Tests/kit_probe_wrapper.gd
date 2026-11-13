@@ -13,4 +13,6 @@ func _ready() -> void:
 		return
 	var n := Node.new()
 	n.set_script(scr)
+	## defer 挂 root（root setup 期同步 add 被拒=Parent busy）——探针 _ready
+	## 首行 await process_frame 后树态已就绪
 	get_tree().root.add_child.call_deferred(n)

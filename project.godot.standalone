@@ -20,8 +20,6 @@ config/features=PackedStringArray("4.7")
 THXKit="*res://addons/thx_gamekit/core/kit.gd"
 GameGlobals="*res://addons/thx_gamekit/editor/game_globals_compat.gd"
 
-[display]
-
 [editor_plugins]
 
 enabled=PackedStringArray("addons/thx_gamekit/plugin.cfg")

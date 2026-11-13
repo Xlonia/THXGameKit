@@ -3,15 +3,15 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://c8f0uh16d7ljk"
-path="res://.godot/imported/spell0.PNG-45dbcdacc3385ae777d912f9dd32ca79.ctex"
+path="res://.godot/imported/spell0.PNG-0b122c67dab957cc5ef714245228cc76.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://addons/thxgamekit/kit/addons/thx_gamekit/data/textures/danmaku16pxs/spell0.PNG"
-dest_files=["res://.godot/imported/spell0.PNG-45dbcdacc3385ae777d912f9dd32ca79.ctex"]
+source_file="res://addons/thx_gamekit/data/textures/danmaku16pxs/spell0.PNG"
+dest_files=["res://.godot/imported/spell0.PNG-0b122c67dab957cc5ef714245228cc76.ctex"]
 
 [params]
 
