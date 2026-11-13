@@ -20,6 +20,10 @@ config/features=PackedStringArray("4.7")
 THXKit="*res://addons/thx_gamekit/core/kit.gd"
 GameGlobals="*res://addons/thx_gamekit/editor/game_globals_compat.gd"
 
+[application]
+
+run/max_fps=60
+
 [display]
 
 display/window/vsync/vsync_mode=1
