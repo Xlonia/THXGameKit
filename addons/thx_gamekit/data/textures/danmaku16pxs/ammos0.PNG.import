@@ -3,15 +3,15 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://cf5iripo3qp6v"
-path="res://.godot/imported/ammos0.PNG-6750ea83a98ede5a1584bb948bb67107.ctex"
+path="res://.godot/imported/ammos0.PNG-4717887a2957f6e3237d8e2f819eb0df.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://addons/thx_gamekit/data/textures/danmaku16pxs/ammos0.PNG"
-dest_files=["res://.godot/imported/ammos0.PNG-6750ea83a98ede5a1584bb948bb67107.ctex"]
+source_file="res://addons/thxgamekit/kit/addons/thx_gamekit/data/textures/danmaku16pxs/ammos0.PNG"
+dest_files=["res://.godot/imported/ammos0.PNG-4717887a2957f6e3237d8e2f819eb0df.ctex"]
 
 [params]
 

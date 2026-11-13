@@ -621,7 +621,7 @@ func update(dt: float) -> bool:
 	if ev.tag == DanmakuEventData.TAG_NODES or ev.tag == DanmakuEventData.TAG_NODES_B:
 		## 【对撞（20261020）】命题真或旧 can_destroy：参与检测，可被物弹/敌弹摧毁；
 		## clash_ddm 名单决定可摧毁来源侧别（_clash_sides）
-		var clash_on := ev.can_destroy or (ev.ex_clash != null and ev.ex_clash.eval_prop(ctx, 0.0) > 0.5)
+		var clash_on: bool = ev.can_destroy or (ev.ex_clash != null and ev.ex_clash.eval_prop(ctx, 0.0) > 0.5)
 		if clash_on and _world != null and int(t) % 2 == 0:
 			var destroyed := false
 			for qside in _clash_sides():
@@ -851,7 +851,7 @@ func _step_nodes(dt: float, ctx: Dictionary) -> bool:
 	var dist := pos.distance_to(tp)
 	## lost_if 命题（作者批复新增）：真=暂时失锁转直线，直至命题为否
 	if ev.ex_lost_if != null:
-		var lif := ev.ex_lost_if.execute_dict(ctx, 0.0) > 0.5
+		var lif: bool = ev.ex_lost_if.execute_dict(ctx, 0.0) > 0.5
 		if lif:
 			lost_lock = true
 		elif not _has_hard_lock_loss(tp, dist):
@@ -888,16 +888,16 @@ func _step_nodes(dt: float, ctx: Dictionary) -> bool:
 	## 【20261020 改名+上升沿】释放条件=release_when（旧 release_condit 兼容）：
 	## 每次从假到真上升沿执行释放事件列表（不清除本体）
 	## 【20261004】事件名升级为数列（逗号分隔；编辑器绑定框增删）——逐个生成
-	var rw := ev.ex_release_when
+	var rw = ev.ex_release_when
 	if rw != null:
-		var r := rw.eval_prop(ctx, 0.0) > 0.5
+		var r: bool = rw.eval_prop(ctx, 0.0) > 0.5
 		if r and release_armed and ev.release != "":
 			_fire_event_list(ev.release)
 			release_armed = false
 		elif not r:
 			release_armed = true
 	## 引爆条件=inherit_when（旧 explode_condit 兼容）：命题为真 → 执行继承列表并消除
-	var iw := ev.ex_inherit_when
+	var iw = ev.ex_inherit_when
 	if iw != null and ev.inherit_s != "":
 		if iw.eval_prop(ctx, 0.0) > 0.5:
 			_fire_event_list(ev.inherit_s)
@@ -937,15 +937,15 @@ func _step_nodes_b(dt: float, ctx: Dictionary) -> void:
 	ctx["targe_x"] = tp.x - pos.x
 	ctx["targe_y"] = tp.y - pos.y
 	## 释放/继承（与点向类同语义；上升沿）
-	var rw := ev.ex_release_when
+	var rw = ev.ex_release_when
 	if rw != null:
-		var r := rw.eval_prop(ctx, 0.0) > 0.5
+		var r: bool = rw.eval_prop(ctx, 0.0) > 0.5
 		if r and release_armed and ev.release != "":
 			_fire_event_list(ev.release)
 			release_armed = false
 		elif not r:
 			release_armed = true
-	var iw := ev.ex_inherit_when
+	var iw = ev.ex_inherit_when
 	if iw != null and ev.inherit_s != "":
 		if iw.eval_prop(ctx, 0.0) > 0.5:
 			_fire_event_list(ev.inherit_s)

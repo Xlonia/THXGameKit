@@ -1,6 +1,7 @@
 @tool
 class_name TimelineData
 extends RefCounted
+
 ## =============================================================
 ## 时间轴（作者批复 2026-10-02）：
 ##   不为弹幕安排"时间轴的帧"，而是在时间轴的每个弹幕事件帧（0.1秒一个tick）
@@ -50,8 +51,8 @@ func to_gd() -> String:
 	lines.append("## 本文件由弹幕编辑器自动生成；运行时解析见 TimelineData。")
 	return "\n".join(lines) + "\n"
 
-static func parse_gd(text: String) -> TimelineData:
-	var tl := TimelineData.new()
+static func parse_gd(text: String):
+	var tl = TimelineData.new()
 	for line in text.split("\n", false):
 		var l := line.strip_edges()
 		if l.begins_with("## @name:"):

@@ -1,6 +1,8 @@
 @tool
 class_name DanmakuEventData
 extends RefCounted
+## 【挂载点无关】DanmakuExpr=类名直引（全局类注册表；preload 字面量路径
+## 在宿主挂载失效——m45 教训）
 ## =============================================================
 ## 弹幕事件数据（第①期扩充，对齐作者批复与新版编辑器文档）
 ## 新增列（相对0期）：x_offset y_offset saturation hue lost_if laser_n_step
@@ -236,16 +238,16 @@ var motion_time_bound := false            ## 普通/物理弹的 x/y/speed 是�
 var laser_time_bound := false             ## 瞬时类 x/y 是否依赖 t（否=几何一次成型）
 
 ## —— 编译后的表达式 ——
-var ex_alpha: DanmakuExpr = null
-var ex_spin_x: DanmakuExpr = null ## 【0.0.9·③ 偏心中心】
-var ex_spin_y: DanmakuExpr = null
-var ex_pass: DanmakuExpr = null
-var ex_speed: DanmakuExpr = null
-var ex_x: DanmakuExpr = null
-var ex_y: DanmakuExpr = null
-var ex_func: DanmakuExpr = null
-var ex_hue: DanmakuExpr = null
-var ex_sat: DanmakuExpr = null
+var ex_alpha = null
+var ex_spin_x = null ## 【0.0.9·③ 偏心中心】
+var ex_spin_y = null
+var ex_pass = null
+var ex_speed = null
+var ex_x = null
+var ex_y = null
+var ex_func = null
+var ex_hue = null
+var ex_sat = null
 ## 【0.0.9·审计①-0】编译期定值折叠槽（*_is_const=true 时对应 ex_* 已置 null）
 var hue_is_const := false
 var hue_const := 0.0
@@ -263,8 +265,8 @@ var spin_x_s := ""
 var spin_y := 0.0
 var spin_y_s := ""
 var hitbox_name := ""
-var _spin_x_expr: DanmakuExpr = null
-var _spin_y_expr: DanmakuExpr = null
+var _spin_x_expr = null
+var _spin_y_expr = null
 
 ## 【0.0.9·③ 编辑器展示刷新钩（20261112 实做——原 pass 空实现=改下拉后
 ## 展示卡永不刷新的故障根因之一）】opt_tex 改动时编辑器手动调用
@@ -275,43 +277,43 @@ func bind_preview_refresh(cb: Callable) -> void:
 
 ## 【0.0.9·③】偏心中心列求值（整式；出生定值）
 func eval_num_global(col: String, dflt: float) -> float:
-	var e: DanmakuExpr = _spin_x_expr if col == "spin_x" else _spin_y_expr
+	var e = _spin_x_expr if col == "spin_x" else _spin_y_expr
 	if e != null:
 		return e.execute([], dflt)
 	## 表达式缺失 → 读值成员（程序化赋值/运行时接口生效；CSV 路径走 compile）
 	return spin_x if col == "spin_x" else spin_y
 var pass_const := false
-var ex_lost_if: DanmakuExpr = null
-var ex_asa: DanmakuExpr = null  ## 预警期不透明度比值（表达式）
-var ex_lrs: DanmakuExpr = null  ## 激光渲染规模（表达式）
-var ex_explode: DanmakuExpr = null
-var ex_release: DanmakuExpr = null
+var ex_lost_if = null
+var ex_asa = null  ## 预警期不透明度比值（表达式）
+var ex_lrs = null  ## 激光渲染规模（表达式）
+var ex_explode = null
+var ex_release = null
 ## 旋转重复参数表达式（20261019：range/offset 浮点式、div/rate 整式、pingpong 式/命题、delay 整式）
-var ex_rrot_range: DanmakuExpr = null
-var ex_rrot_div: DanmakuExpr = null
-var ex_rrot_rate: DanmakuExpr = null
-var ex_rrot_offset: DanmakuExpr = null
-var ex_rrot_pp: DanmakuExpr = null
-var ex_rrot_delay: DanmakuExpr = null
+var ex_rrot_range = null
+var ex_rrot_div = null
+var ex_rrot_rate = null
+var ex_rrot_offset = null
+var ex_rrot_pp = null
+var ex_rrot_delay = null
 ## 通用参数表达式（20261019 类型批复）
-var ex_repeat_time: DanmakuExpr = null
-var ex_repeat_freq: DanmakuExpr = null
-var ex_range: DanmakuExpr = null
-var ex_dmg: DanmakuExpr = null
-var ex_size: DanmakuExpr = null
-var ex_xoff: DanmakuExpr = null
-var ex_yoff: DanmakuExpr = null
-var ex_rate: DanmakuExpr = null
-var ex_pattern: DanmakuExpr = null
-var ex_alarm: DanmakuExpr = null
-var ex_color_r: DanmakuExpr = null
-var ex_color_g: DanmakuExpr = null
-var ex_color_b: DanmakuExpr = null
-var ex_color_ab: DanmakuExpr = null
-var ex_clash: DanmakuExpr = null
-var ex_active: DanmakuExpr = null
-var ex_inherit_when: DanmakuExpr = null
-var ex_release_when: DanmakuExpr = null
+var ex_repeat_time = null
+var ex_repeat_freq = null
+var ex_range = null
+var ex_dmg = null
+var ex_size = null
+var ex_xoff = null
+var ex_yoff = null
+var ex_rate = null
+var ex_pattern = null
+var ex_alarm = null
+var ex_color_r = null
+var ex_color_g = null
+var ex_color_b = null
+var ex_color_ab = null
+var ex_clash = null
+var ex_active = null
+var ex_inherit_when = null
+var ex_release_when = null
 
 ## =============================================================
 ## 通用弹幕旋转重复（弹幕编辑器-新 20261015；类型修订 20261019）
@@ -333,11 +335,11 @@ const ROT_SEQS: Array[String] = ["cw", "ccw", "mid_sync", "mid_left", "mid_right
 ## 单个数字即常量式；range/offset 取浮点、div/rate 向下取整为整数、
 ## pingpong 数字取整/命题真1假0——命题求值即 0/1 浮点，取整后同义）
 func eval_rotate_params(ctx: Dictionary) -> Dictionary:
-	var rng := ex_rrot_range.execute_dict(ctx, 0.0) if ex_rrot_range != null else _raw_f(rotate_range)
-	var off := ex_rrot_offset.execute_dict(ctx, 0.0) if ex_rrot_offset != null else _raw_f(rotate_offset)
-	var div := ex_rrot_div.execute_dict(ctx, 0.0) if ex_rrot_div != null else _raw_f(rotate_div)
-	var rate := ex_rrot_rate.execute_dict(ctx, 0.0) if ex_rrot_rate != null else _raw_f(rotate_rate)
-	var pp := ex_rrot_pp.execute_dict(ctx, 0.0) if ex_rrot_pp != null else _raw_f(rotate_pingpong)
+	var rng: float = ex_rrot_range.execute_dict(ctx, 0.0) if ex_rrot_range != null else _raw_f(rotate_range)
+	var off: float = ex_rrot_offset.execute_dict(ctx, 0.0) if ex_rrot_offset != null else _raw_f(rotate_offset)
+	var div: float = ex_rrot_div.execute_dict(ctx, 0.0) if ex_rrot_div != null else _raw_f(rotate_div)
+	var rate: float = ex_rrot_rate.execute_dict(ctx, 0.0) if ex_rrot_rate != null else _raw_f(rotate_rate)
+	var pp: float = ex_rrot_pp.execute_dict(ctx, 0.0) if ex_rrot_pp != null else _raw_f(rotate_pingpong)
 	return {
 		"range": maxf(0.0, rng),
 		"offset": off,
@@ -412,12 +414,12 @@ func eval_rate(ctx: Dictionary) -> float:
 func eval_pattern(ctx: Dictionary) -> float:
 	return maxf(0.0, _e_or(ex_pattern, pattern, ctx))
 
-func _e_or(e: DanmakuExpr, d: float, ctx: Dictionary) -> float:
+func _e_or(e: Variant, d: float, ctx: Dictionary) -> float:
 	if e != null:
 		return e.eval_num(ctx, d) ## 严格数值：非法/布尔 → 默认（批复 20261020）
 	return d
 
-func _p_or(e: DanmakuExpr, d: float, ctx: Dictionary) -> float:
+func _p_or(e: Variant, d: float, ctx: Dictionary) -> float:
 	if e != null:
 		return e.eval_prop(ctx, d) ## 命题：布尔→1/0（rotate_pingpong/color_ab 等）
 	return d
@@ -844,7 +846,7 @@ func compile() -> Array[String]:
 			ex_rrot_div, ex_rrot_rate, ex_rrot_pp, ex_rrot_delay,
 			ex_dmg, ex_size, ex_xoff, ex_yoff, ex_range, ex_alarm]:
 		if _pe != null:
-			(_pe as DanmakuExpr)._no_hot = true
+			(_pe as Object).set("_no_hot", true)
 	ex_inherit_when = _compile_one("" if inherit_when_s in ["", "0"] else inherit_when_s, errs, "inherit_when")
 	ex_release_when = _compile_one("" if release_when_s in ["", "0"] else release_when_s, errs, "release_when")
 	## 变量引用全集 + 运动时间依赖（供 Bullet 快照/冻结判定，事件级一次）
@@ -858,16 +860,16 @@ func compile() -> Array[String]:
 	## 激光动态重采样判定（20261004：仅 x/y 依赖 t 才每6帧重建；上限保护）
 	laser_time_bound = false
 	for e in [ex_x, ex_y]:
-		if e != null and (e as DanmakuExpr).uses_variable("t"):
+		if e != null and (e as Object).uses_variable("t"):
 			laser_time_bound = true
 			break
 	for v in EXPR_VARS:
 		for e in all_exprs:
-			if e != null and (e as DanmakuExpr).uses_variable(v):
+			if e != null and (e as Object).uses_variable(v):
 				ctx_keys_used.append(v)
 				break
 	motion_time_bound = false
-	for e: DanmakuExpr in [ex_x, ex_y, ex_speed]:
+	for e in [ex_x, ex_y, ex_speed]:
 		if e != null and (e.uses_variable("t") or e.uses_variable("t_r")):
 			motion_time_bound = true
 			break
@@ -875,7 +877,7 @@ func compile() -> Array[String]:
 	## "每发解释"变"查模板+填快照"）——编译期一次性判定，Bullet.setup 免去
 	## 26 处 uses_variable/属性重读：
 	tpl_motion = motion_time_bound
-	tpl_uses_tcopy = (ex_x != null and (ex_x as DanmakuExpr).uses_variable("t_copy")) 		or (ex_y != null and (ex_y as DanmakuExpr).uses_variable("t_copy"))
+	tpl_uses_tcopy = (ex_x != null and (ex_x as Object).uses_variable("t_copy")) 		or (ex_y != null and (ex_y as Object).uses_variable("t_copy"))
 	tpl_has_ex_x = ex_x != null
 	tpl_has_ex_y = ex_y != null
 	tpl_has_ex_speed = ex_speed != null
@@ -888,7 +890,7 @@ func compile() -> Array[String]:
 
 ## 模板辅助：x/y 是否引用 x_copy/y_copy（帧控判定的事件级版本）
 func _xy_in_motion_flag() -> bool:
-	return (ex_x != null and ((ex_x as DanmakuExpr).uses_variable("x_copy") or (ex_x as DanmakuExpr).uses_variable("y_copy"))) 		or (ex_y != null and ((ex_y as DanmakuExpr).uses_variable("x_copy") or (ex_y as DanmakuExpr).uses_variable("y_copy")))
+	return (ex_x != null and ((ex_x as Object).uses_variable("x_copy") or (ex_x as Object).uses_variable("y_copy"))) 		or (ex_y != null and ((ex_y as Object).uses_variable("x_copy") or (ex_y as Object).uses_variable("y_copy")))
 
 ## 模板辅助：w 冻结的动态键排除——x/y 引用的变量里有非静态键（t 系等）
 func _motion_depends_on_dynamic() -> bool:
@@ -900,7 +902,7 @@ func _motion_depends_on_dynamic() -> bool:
 		if e == null:
 			continue
 		for v in EXPR_VARS:
-			if (e as DanmakuExpr).uses_variable(v) and not st.has(v):
+			if (e as Object).uses_variable(v) and not st.has(v):
 				return true
 	return false
 
@@ -913,11 +915,11 @@ func _is_expr_str(v) -> bool:
 		return false
 	return not s.is_valid_float()
 
-func _compile_one(text: String, errs: Array[String], field: String) -> DanmakuExpr:
+func _compile_one(text: String, errs: Array[String], field: String) :
 	if text.strip_edges().is_empty():
 		return null
 	var t := _extract_chata(text)
-	var e := DanmakuExpr.new()
+	var e = DanmakuExpr.new()
 	if not e.compile(t, EXPR_VARS):
 		errs.append("%s「%s」表达式解析失败" % [event_name, field])
 		return null

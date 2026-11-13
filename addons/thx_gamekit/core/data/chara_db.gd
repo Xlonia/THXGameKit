@@ -1,6 +1,7 @@
 @tool
 class_name CharaDB
 extends RefCounted
+
 ## =============================================================
 ## 角色数据库（第①期：新增 poi 表达式列 + privates.csv + Enemy.csv）
 ## Characters.csv 列（作者已提供 poi 数据）：
@@ -348,11 +349,11 @@ static func get_enemy_by_name(n: String) -> Dictionary:
 	return {}
 
 ## poi 表达式编译工具（FireControl 复用；错误返回 null）
-static func compile_poi(row: Dictionary, col: String) -> DanmakuExpr:
+static func compile_poi(row: Dictionary, col: String):
 	var raw := String(row.get(col, "0")).strip_edges()
 	if raw.is_empty():
 		raw = "0"
-	var e := DanmakuExpr.new()
+	var e = DanmakuExpr.new()
 	if not e.compile(raw, POI_VARS):
 		return null
 	return e

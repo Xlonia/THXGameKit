@@ -115,7 +115,7 @@ func _ready() -> void:
 		return
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(PROJECTS_DIR))
 	_load_official()
-	_load_official_timelines()
+	_load_official_timelines() ## 运行时限行（编辑器态环境门已 return——parse_gd 不被扫描）
 
 ## 官方时间轴装载：data/timelines/*.gd（TimelineData.parse_gd 文本格式）
 func _load_official_timelines() -> void:
@@ -126,7 +126,7 @@ func _load_official_timelines() -> void:
 	var f := dir.get_next()
 	while f != "":
 		if f.ends_with(".gd"):
-			var tl := TimelineData.parse_gd(FileAccess.get_file_as_string(DATA_DIR.path_join("timelines").path_join(f)))
+			var tl: TimelineData = TimelineData.parse_gd(FileAccess.get_file_as_string(DATA_DIR.path_join("timelines").path_join(f)))
 			if not official_timelines.has(tl.tl_name):
 				official_timelines[tl.tl_name] = tl
 		f = dir.get_next()
