@@ -3,3 +3,8 @@
 
 # Godot CSV 本地化自动产物（characters.*.translation 等——导入期再生）
 addons/thx_gamekit/data/*.translation
+
+# THX75 专属 C++ 扩展（宿主走 project_ext 注册；GameKit 独立无此需求）
+addons/thx_gamekit/thx_gamekit.gdextension*
+addons/thx_gamekit/extension/
+addons/thx_gamekit/bin/
