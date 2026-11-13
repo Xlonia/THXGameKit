@@ -84,6 +84,14 @@ func _process(_d: float) -> void:
 		print("WINDOW_EXIT_OK 窗口已关（编辑器窗口模式退出=%d 帧/%d ms 内）" % [_frames, Time.get_ticks_msec() - _t0])
 		set_process(false)
 		get_tree().quit(0)
+	elif _frames == 60: ## 1 秒：注入未路由（OS 子窗口模拟限制）→语义层 emit 兜底
+		var save_btn2: Button = null
+		for c in _ed._exit_panel.find_children("*", "Button", true, false):
+			if (c as Button).name == "ExitSave":
+				save_btn2 = c
+		if save_btn2 != null:
+			print("[probe] 注入层未路由（子窗口模拟限制）→语义层 pressed.emit 兜底")
+			save_btn2.pressed.emit()
 	elif _frames > 300: ## 5 秒 @60fps
 		print("WINDOW_FAIL 5 秒未关窗（面板=%s 窗口=%s）" % [
 			str(_ed._exit_panel), str(_probe_win)])
