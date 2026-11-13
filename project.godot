@@ -1,0 +1,33 @@
+; Engine configuration file.
+; It's best edited using the editor UI and not directly,
+; since the parameters that go here are not all obvious.
+;
+; Format:
+;   [section] ; section goes between []
+;   param=value ; assign values to parameters
+
+config_version=5
+
+[application]
+
+config/name="THXGameKit"
+config/description="弹幕专题游戏制作内核（次级引擎）——弹幕运行时/事件/时间轴/角色数据基底/弹幕编辑器"
+run/main_scene="res://scenes/title_menu.tscn"
+config/features=PackedStringArray("4.7")
+
+[display]
+
+; 空转节流 20261114（作者数据 11132223：空转段 fps=14958 vsync 失效 GPU 满载）
+; 显式 vsync=every vblank（Optimus 双 GPU 下默认请求可能失败）
+; 低处理器模式（空闲帧自动降频省 GPU：标题/编辑器空闲态）
+display/window/vsync/vsync_mode=1
+display/window/low_processor_usage_mode=true
+
+[autoload]
+
+THXKit="*res://addons/thx_gamekit/core/kit.gd"
+GameGlobals="*res://addons/thx_gamekit/editor/game_globals_compat.gd"
+
+[editor_plugins]
+
+enabled=PackedStringArray("addons/thx_gamekit/plugin.cfg")
