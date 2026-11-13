@@ -481,10 +481,12 @@ const PROJECTDATA_DIR := "res://projectdata"
 func thxp_format(path: String) -> String:
 	if not FileAccess.file_exists(path):
 		return ""
-	var head := FileAccess.get_file_as_string(path).substr(0, 2) if FileAccess.get_file_as_string(path).length() >= 2 else ""
-	if head == "PK":
+	## 【字节头判断 20261114】get_file_as_string 对二进制 zip 截断失真——
+	## 改读前 2 字节（PK=packed / {=reference JSON）
+	var bytes := FileAccess.get_file_as_bytes(path)
+	if bytes.size() >= 2 and bytes[0] == 0x50 and bytes[1] == 0x4B:
 		return "packed"
-	if head == "{":
+	if bytes.size() >= 1 and bytes[0] == 0x7B:
 		return "reference"
 	return ""
 
@@ -542,7 +544,9 @@ func thxp_to_packed(path: String) -> bool:
 			n += 1
 	zw.close()
 	DirAccess.copy_absolute(ProjectSettings.globalize_path(path), ProjectSettings.globalize_path(path + ".reference.bak"))
-	DirAccess.remove_absolute(ProjectSettings.globalize_path(path + ".packing"))
+	## 【顺序修复 20261114】先删目标再改名（旧序把刚打的包删除了再 rename）
+	if FileAccess.file_exists(path):
+		DirAccess.remove_absolute(ProjectSettings.globalize_path(path))
 	DirAccess.rename_absolute(ProjectSettings.globalize_path(path + ".packing"), ProjectSettings.globalize_path(path))
 	return n > 0
 
