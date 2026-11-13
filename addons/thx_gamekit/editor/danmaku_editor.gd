@@ -2349,11 +2349,12 @@ func _build_formation_page() -> Control:
 func _dialog_reparent(dlg: Window, center_size: Vector2i = Vector2i(), do_popup := true) -> void:
 	## 统一走延迟队列（同帧 FIFO：add 先于 popup）——
 	## 同步 add 在 _ready 构建期会撞 "Parent busy"；交互期延迟也在同一帧内生效
-	var host_win := get_window()
-	if host_win != null and host_win != self:
-		host_win.add_child.call_deferred(dlg)
-	else:
-		add_child.call_deferred(dlg)
+	## 【空转烧帧终修 20261114（作者分析器：3600帧/0.12s 全零负载）】旧版
+	## 主窗模式 get_window()=root → Window 挂到场景树根——编辑器被
+	## change_scene 释放时残留 root **永生空转**（每帧重画无负载=分析器
+	## 空转万帧特征）。一律挂编辑器自身（随场景释放；Window 挂 Control
+	## 下=嵌入式子窗口，行为一致）
+	add_child.call_deferred(dlg)
 	if not do_popup:
 		return ## 文件对话框等按需弹出的窗体只挂载
 	if center_size != Vector2i():
