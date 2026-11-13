@@ -3,15 +3,15 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://7rt0l7e7bfew"
-path="res://.godot/imported/laserpx1-16.PNG-27872d3d4dbfdb0cd4017cf3c2478a7c.ctex"
+path="res://.godot/imported/laserpx1-16.PNG-df4f583d181c92903c29fcc92d4e7a37.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://addons/thxgamekit/kit/addons/thx_gamekit/data/textures/danmaku16pxs/laserpx1-16.PNG"
-dest_files=["res://.godot/imported/laserpx1-16.PNG-27872d3d4dbfdb0cd4017cf3c2478a7c.ctex"]
+source_file="res://addons/thx_gamekit/data/textures/danmaku16pxs/laserpx1-16.PNG"
+dest_files=["res://.godot/imported/laserpx1-16.PNG-df4f583d181c92903c29fcc92d4e7a37.ctex"]
 
 [params]
 

@@ -3,15 +3,15 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://clq3vavvn1hc"
-path="res://.godot/imported/torpedo.PNG-3c80d6a9dba7931d0330dd2c66c7f06f.ctex"
+path="res://.godot/imported/torpedo.PNG-c5c4cb7c8bce8c3eed683d07b6edddfa.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://addons/thxgamekit/kit/addons/thx_gamekit/data/textures/danmaku16pxs/torpedo.PNG"
-dest_files=["res://.godot/imported/torpedo.PNG-3c80d6a9dba7931d0330dd2c66c7f06f.ctex"]
+source_file="res://addons/thx_gamekit/data/textures/danmaku16pxs/torpedo.PNG"
+dest_files=["res://.godot/imported/torpedo.PNG-c5c4cb7c8bce8c3eed683d07b6edddfa.ctex"]
 
 [params]
 

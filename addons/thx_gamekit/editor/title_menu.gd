@@ -224,6 +224,7 @@ func _content_row(kind: String, label: String) -> HBoxContainer:
 	pick.text = "选取文件夹"
 	pick.focus_mode = Control.FOCUS_NONE
 	var dlg := FileDialog.new()
+	dlg.use_native_dialog = true
 	dlg.access = FileDialog.ACCESS_FILESYSTEM
 	dlg.file_mode = FileDialog.FILE_MODE_OPEN_DIR
 	dlg.title = "选择 %s 目录" % label
@@ -300,6 +301,7 @@ func _open_about() -> void:
 ## →试炼场式直接玩（事件/时间轴全部就位）
 func _open_thxe_dialog() -> void:
 	var dlg := FileDialog.new()
+	dlg.use_native_dialog = true
 	dlg.access = FileDialog.ACCESS_FILESYSTEM
 	dlg.file_mode = FileDialog.FILE_MODE_OPEN_FILE
 	dlg.filters = PackedStringArray(["*.thxe ; THX发布包（签名强校验）"])

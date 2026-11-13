@@ -461,6 +461,7 @@ func _build_ui() -> void:
 	bottom.add_child(var_b)
 	## 文件对话框（挂在编辑器节点下——独立窗口模式里随窗口走）
 	_file_dialog = FileDialog.new()
+	_file_dialog.use_native_dialog = true
 	_file_dialog.access = FileDialog.ACCESS_FILESYSTEM
 	_file_dialog.use_native_dialog = true
 	_file_dialog.file_selected.connect(_on_file_selected)
@@ -580,6 +581,7 @@ func _settings_content_row(kind: String, label: String) -> HBoxContainer:
 	cur.text = str(dirs[0]) if not dirs.is_empty() else "（未指定）"
 	row.add_child(cur)
 	var dlg := FileDialog.new()
+	dlg.use_native_dialog = true
 	dlg.access = FileDialog.ACCESS_FILESYSTEM
 	dlg.file_mode = FileDialog.FILE_MODE_OPEN_DIR
 	dlg.title = "选择 %s 目录" % label
@@ -605,8 +607,8 @@ func _settings_content_row(kind: String, label: String) -> HBoxContainer:
 	brw.text = "浏览"
 	brw.tooltip_text = "用系统资源管理器打开该类资源的当前目录"
 	brw.pressed.connect(func():
-		var dirs: Array = THXKit.content_scan_dirs(kind)
-		var open_dir: String = dirs[dirs.size() - 1] if not dirs.is_empty() else "res://"
+		var scan_dirs: Array = THXKit.content_scan_dirs(kind)
+		var open_dir: String = scan_dirs[scan_dirs.size() - 1] if not scan_dirs.is_empty() else "res://"
 		OS.shell_open(ProjectSettings.globalize_path(open_dir)))
 	row.add_child(brw)
 	clr.pressed.connect(func():
@@ -2587,6 +2589,7 @@ func _build_chara_page() -> Control:
 		var tbtns := VBoxContainer.new()
 		trow.add_child(tbtns)
 		var imp_dlg := FileDialog.new()
+		imp_dlg.use_native_dialog = true
 		imp_dlg.file_mode = FileDialog.FILE_MODE_OPEN_FILE
 		imp_dlg.access = FileDialog.ACCESS_FILESYSTEM
 		imp_dlg.filters = ["*.png ; PNG 贴图", "*.PNG ; PNG 贴图"]
