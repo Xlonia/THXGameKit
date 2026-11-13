@@ -32,10 +32,11 @@ func _ready() -> void:
 	cs.add_child(sentinel)
 func _process(_d: float) -> void:
 	_frames += 1
-	if _frames == 60:
-		print("RENDER 60 帧内标题画面 _draw 调用=%d（>0=渲染活/0=停摆实锤）" % _draws)
-		print("RENDER_OK" if _draws > 0 else "RENDER_FAIL 渲染停摆")
-		get_tree().quit(0 if _draws > 0 else 1)
+	if _frames == 120:
+		var fps := Engine.get_frames_per_second()
+		print("RENDER 120 帧内标题 _draw=%d | 引擎 fps=%d（≈60=vsync 节流正常/数百=空转未修）" % [_draws, fps])
+		print("RENDER_OK" if _draws > 0 and fps < 200 else "RENDER_FAIL")
+		get_tree().quit(0 if _draws > 0 and fps < 200 else 1)
 
 class DrawSentinel:
 	extends Control
