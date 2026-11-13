@@ -1,3 +1,4 @@
+@tool
 extends Node
 ## =============================================================
 ## THXKit —— 内核数据基底单例（project.godot autoload）
@@ -105,7 +106,13 @@ var official_timelines: Dictionary = {} ## 官方时间轴注册表（名→Time
 var mod_timelines: Dictionary = {}   ## mod 时间轴注册表（名→TimelineData）
 
 func _ready() -> void:
+	## 【@tool 化 20261114（作者裁定）】内核在编辑器环境也初始化——但**环境门**：
+	## 编辑器（is_editor_hint）只做路径推导+数据基址推送（主屏 tab 场景编辑器
+	## 需要类型与路径可用）；**重装载（官方表 CSV/mods 扫描）仅运行时**——
+	## 编辑器环境批量 IO 会拖慢编辑器启动且与编辑器工作集冲突
 	_resolve_paths()
+	if Engine.is_editor_hint():
+		return
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(PROJECTS_DIR))
 	_load_official()
 	_load_official_timelines()

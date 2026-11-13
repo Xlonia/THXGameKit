@@ -9,11 +9,11 @@ var _main_screen: Control = null
 func _enter_tree() -> void:
 	print("[THXGameKit] 数据基底就绪：弹幕事件/表达式/材质/时间轴/角色表/场景")
 
-## 【主屏撤除 20261114（作者）】编辑器环境（Godot EditorPlugin）里游戏侧
-## autoload/全局类全链失效（非 @tool 架构）——场景编辑保留在游戏内
-## "场景"页签；主屏路线=内核 @tool 化大改造，待专项
+## 【主屏恢复 20261114（作者裁定：直接 @tool 化改造）】内核数据链已 @tool 头
+## （kit.gd 环境门：编辑器只推路径基址不重装载）——全局类在编辑器可用，
+## 主屏 tab 回归；场景编辑双形态单源（此处与游戏内"场景"页签同一 ScenarioEditor）
 func _has_main_screen() -> bool:
-	return false
+	return true
 
 func _get_plugin_name() -> String:
 	return "THXGameKit"
