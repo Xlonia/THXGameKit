@@ -1685,15 +1685,16 @@ func _close_exit_panel() -> void:
 	_exit_panel = null
 
 func _after_exit(mode: String) -> void:
-	## 【窗口化 20261114（作者方向）】窗口模式（标题弹出的 OS 窗口）=
-	## **关自身窗口**（主窗常驻）——零场景切换；替换主窗模式（th75 宿主
-	## 预览）保持旧路由
+	## 【窗口化回滚 20261114（作者）】编辑器环境报错链证明窗口化+主屏路线
+	## 需内核 @tool 化（大改造）——回滚替换主窗模式；卡死后续专项
 	match mode:
-		"close", "title", "quit":
+		"close":
 			if _in_window_mode():
 				(get_parent() as Window).queue_free()
-			else:
-				GameGlobals.goto_scene("res://scenes/title_menu.tscn")
+		"title":
+			GameGlobals.goto_scene("res://scenes/title_menu.tscn")
+		"quit":
+			GameGlobals.goto_scene("res://scenes/title_menu.tscn") ## 窗口模式关窗+否则回标题
 
 func _save_package(path: String, fmt: String) -> void:
 	## =============================================================
@@ -1930,19 +1931,7 @@ func _on_preview() -> void:
 	## 【0.0.9·预览（作者 20261110 终裁=0.0.7-legacy/0.0.8 行为）】goto_scene
 	## 替换**主窗口**为试炼场（编辑器子窗口=真 OS 窗口保持；gui_embed_subwindows
 	## 已复位到 _ready）；退出试炼场=Esc 面板按钮回本场景（编辑器 _ready 重载工作集）
-	if _in_window_mode():
-		## 【窗口化】试炼场=独立 OS 窗口（编辑器窗口不动；退出=关窗）
-		var tw := Window.new()
-		tw.title = "试炼场 — %s" % GameGlobals.preview_event_name
-		tw.size = Vector2i(560, 560)
-		var tg := Control.new()
-		tg.set_script(load(THXKit.kpath("res://addons/thx_gamekit/editor/trial_ground.gd")))
-		tw.add_child(tg)
-		add_child(tw)
-		tw.popup_centered()
-		tw.close_requested.connect(func(): tw.queue_free())
-	else:
-		GameGlobals.goto_scene("res://scenes/trial_ground.tscn")
+	GameGlobals.goto_scene("res://scenes/trial_ground.tscn")
 
 ## =============================================================
 ## 运算/参数引入工具浮窗（作者图示重做 2026-10-04）：

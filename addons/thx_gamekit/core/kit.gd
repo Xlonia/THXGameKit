@@ -468,3 +468,99 @@ position = Vector2(%d, %d)
 	f.store_string(sb)
 	f.close()
 	return true
+
+## =============================================================
+## 【.thxp 双格式（作者裁定 20261114）】打包（zip 全资源·现行为）/
+## 引用（JSON 清单→本地文件）。projectdata=<游戏根目录>/projectdata/
+## <thxp 文件名>/（作者：appdata 不方便查找，只在游戏根目录）；
+## git 同步忽略 projectdata/（范例/示例特别指出的除外——变更范围清单）。
+## =============================================================
+const PROJECTDATA_DIR := "res://projectdata"
+
+## 格式识别："packed"=zip（PK 头）/"reference"=JSON 清单/""=未知
+func thxp_format(path: String) -> String:
+	if not FileAccess.file_exists(path):
+		return ""
+	var head := FileAccess.get_file_as_string(path).substr(0, 2) if FileAccess.get_file_as_string(path).length() >= 2 else ""
+	if head == "PK":
+		return "packed"
+	if head == "{":
+		return "reference"
+	return ""
+
+func projectdata_dir(thxp_name: String) -> String:
+	return PROJECTDATA_DIR.path_join(thxp_name)
+
+## 引用格式 → （zip 载荷逐文件解压到 projectdata/<名>/）→ thxp 覆写为 JSON 清单
+## （原打包版备份 .thxp.packed.bak）
+func thxp_to_reference(path: String) -> bool:
+	if thxp_format(path) != "packed":
+		return false
+	var zr := ZIPReader.new()
+	if zr.open(path) != OK:
+		return false
+	var base: String = projectdata_dir(path.get_file().get_basename())
+	var files := []
+	for f in zr.get_files():
+		var bytes := zr.read_file(f)
+		var dst := base.path_join(f)
+		DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(dst.get_base_dir()))
+		var w := FileAccess.open(dst, FileAccess.WRITE)
+		if w != null:
+			w.store_buffer(bytes)
+			w.close()
+		files.append(f)
+	zr.close()
+	DirAccess.copy_absolute(ProjectSettings.globalize_path(path), ProjectSettings.globalize_path(path + ".packed.bak"))
+	var json := JSON.stringify({"format": "reference", "version": 1, "base": base, "files": files}, "\t")
+	var fw := FileAccess.open(path, FileAccess.WRITE)
+	if fw == null:
+		return false
+	fw.store_string(json)
+	fw.close()
+	return true
+
+## 引用格式 → 收集 projectdata/<名>/ 全部文件打 zip → thxp 覆写为打包版
+## （JSON 清单备份 .thxp.reference.bak）
+func thxp_to_packed(path: String) -> bool:
+	if thxp_format(path) != "reference":
+		return false
+	var json: Variant = JSON.parse_string(FileAccess.get_file_as_string(path))
+	if typeof(json) != TYPE_DICTIONARY:
+		return false
+	var base: String = str(json.get("base", ""))
+	var zw := ZIPPacker.new()
+	if zw.open(path + ".packing") != OK:
+		return false
+	var n := 0
+	for f in json.get("files", []):
+		var src := base.path_join(str(f))
+		if FileAccess.file_exists(src):
+			zw.start_file(str(f))
+			zw.write_file(FileAccess.get_file_as_bytes(src))
+			zw.close_file()
+			n += 1
+	zw.close()
+	DirAccess.copy_absolute(ProjectSettings.globalize_path(path), ProjectSettings.globalize_path(path + ".reference.bak"))
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(path + ".packing"))
+	DirAccess.rename_absolute(ProjectSettings.globalize_path(path + ".packing"), ProjectSettings.globalize_path(path))
+	return n > 0
+
+## 复制外引资源：打包/引用 thxp 的全部载荷复制到 projectdata/<名>/
+func thxp_copy_external(path: String) -> bool:
+	if thxp_format(path) == "packed":
+		return thxp_to_reference(path) ## 解压即复制（清单同生）
+	if thxp_format(path) != "reference":
+		return false
+	var json: Variant = JSON.parse_string(FileAccess.get_file_as_string(path))
+	if typeof(json) != TYPE_DICTIONARY:
+		return false
+	var base: String = str(json.get("base", ""))
+	var dst_base: String = projectdata_dir(path.get_file().get_basename())
+	for f in json.get("files", []):
+		var src := base.path_join(str(f))
+		var dst := dst_base.path_join(str(f))
+		DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(dst.get_base_dir()))
+		if FileAccess.file_exists(src):
+			DirAccess.copy_absolute(ProjectSettings.globalize_path(src), ProjectSettings.globalize_path(dst))
+	return true

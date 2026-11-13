@@ -161,6 +161,66 @@ func _build_kernel_page() -> Control:
 	note.text = "（发射/判定参数化与消弹域范围绘制=下轮；当前项已进 scenario_cfg 并随场景保存）"
 	note.add_theme_font_size_override("font_size", 12)
 	box.add_child(note)
+	## ——【.thxp 双格式管理（作者裁定 20261114）】——
+	box.add_child(HSeparator.new())
+	var l3 := Label.new()
+	l3.text = "【.thxp 双格式】打包=zip 全资源（含 thxs）｜引用=JSON 清单→本地文件（projectdata/<文件名>/，游戏根目录）"
+	l3.add_theme_font_size_override("font_size", 16)
+	box.add_child(l3)
+	var fmt_l := Label.new()
+	fmt_l.name = "ThxpFmt"
+	fmt_l.add_theme_font_size_override("font_size", 12)
+	box.add_child(fmt_l)
+	var pick := FileDialog.new()
+	pick.access = FileDialog.ACCESS_FILESYSTEM
+	pick.file_mode = FileDialog.FILE_MODE_OPEN_FILE
+	pick.filters = PackedStringArray(["*.thxp ; THX工程"])
+	pick.size = Vector2i(720, 480)
+	box.add_child(pick)
+	var cur := [""]
+	var show_fmt := func():
+		if cur[0] == "":
+			fmt_l.text = "（未选 .thxp——点下方任一按钮选取）"
+		else:
+			fmt_l.text = "%s　格式=%s" % [cur[0], THXKit.thxp_format(cur[0])]
+	var row2 := HBoxContainer.new()
+	row2.add_theme_constant_override("separation", 8)
+	box.add_child(row2)
+	var b1 := Button.new()
+	b1.text = "转为引用格式"
+	b1.tooltip_text = "打包 thxp 的资源解压到 projectdata/<文件名>/，thxp 覆写为 JSON 清单（原打包版备份 .packed.bak）"
+	b1.pressed.connect(func():
+		if cur[0] != "" and THXKit.thxp_to_reference(cur[0]):
+			print("[thxp] 已转引用格式：%s" % cur[0])
+			show_fmt.call())
+	row2.add_child(b1)
+	var b2 := Button.new()
+	b2.text = "打包资源引用"
+	b2.tooltip_text = "把所有引用的文件夹内容复制进来压缩进该文件（JSON 清单备份 .reference.bak）"
+	b2.pressed.connect(func():
+		if cur[0] != "" and THXKit.thxp_to_packed(cur[0]):
+			print("[thxp] 已转打包格式：%s" % cur[0])
+			show_fmt.call())
+	row2.add_child(b2)
+	var b3 := Button.new()
+	b3.text = "复制外引资源"
+	b3.tooltip_text = "所有引用的文件夹内容复制迁移到 projectdata/<文件名>/"
+	b3.pressed.connect(func():
+		if cur[0] != "" and THXKit.thxp_copy_external(cur[0]):
+			print("[thxp] 外引资源已复制到 projectdata")
+			show_fmt.call())
+	row2.add_child(b3)
+	pick.file_selected.connect(func(fp: String):
+		cur[0] = fp
+		show_fmt.call())
+	for b in [b1, b2, b3]:
+		b.pressed.connect(func(): pass) ## pick 由各按钮前次路径记忆
+		b.focus_mode = Control.FOCUS_NONE
+	var pick_b := Button.new()
+	pick_b.text = "选取 .thxp"
+	pick_b.pressed.connect(func(): pick.popup_centered())
+	row2.add_child(pick_b)
+	show_fmt.call()
 	return sc
 
 func _cfg_row(key: String, label: String, kind: String) -> HBoxContainer:
