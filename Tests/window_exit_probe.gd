@@ -29,13 +29,13 @@ func _ready() -> void:
 		return
 	var save_btn: Button = null
 	for c in _ed._exit_panel.find_children("*", "Button", true, false):
-		if (c as Button).name == "ExitSave":
-			save_btn = c
+		if (c as Button).name == "ExitDrop":
+			save_btn = c ## 【作者路径】不保存退出（draft 还原）
 	if save_btn == null:
 		print("WINDOW_FAIL 保存按钮未找到")
 		get_tree().quit(1)
 		return
-	print("[probe] T+%dms 面板就绪" % (Time.get_ticks_msec() - t_click))
+	print("[probe] T+%dms 面板就绪（本轮=不保存退出路径）" % (Time.get_ticks_msec() - t_click))
 	## 【拟真鼠标 20261114（作者批准）】warp 真光标到按钮屏幕坐标+屏幕系
 	## parse_input_event（OS 鼠标位置+全局管线——最接近真人点击）
 	var btn_screen: Vector2 = save_btn.get_global_rect().get_center()

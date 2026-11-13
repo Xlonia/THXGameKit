@@ -21,8 +21,8 @@ func _ready() -> void:
 	await get_tree().process_frame
 	await get_tree().process_frame
 	for c in ed._exit_panel.find_children("*", "Button", true, false):
-		if (c as Button).name == "ExitSave":
-			(c as Button).pressed.emit()
+		if (c as Button).name == "ExitDrop":
+			(c as Button).pressed.emit() ## 【作者路径】不保存退出
 	await get_tree().process_frame
 	await get_tree().process_frame
 	## 切到标题后：扫 root 直属子节点（编辑器 _dialog_reparent 残留的

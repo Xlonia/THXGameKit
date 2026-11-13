@@ -165,6 +165,14 @@ func _set_events(arr: Array[DanmakuEventData]) -> void:
 	GameGlobals.sync_official_events(events, _deleted_names) ## 变更即落盘（合并-排除删除项）
 
 var _deleted_names: PackedStringArray = [] ## 本会话真删除的事件名（同步时排除）
+const RECENT_PATH := "user://thx_gamekit/recent.txt" ## 【继续按钮】最近工程（标题正中读取）
+
+func _recent_write(path: String) -> void:
+	DirAccess.make_dir_recursive_absolute(RECENT_PATH.get_base_dir())
+	var f := FileAccess.open(RECENT_PATH, FileAccess.WRITE)
+	if f != null:
+		f.store_string(path)
+		f.close()
 
 ## =============================================================
 ## 杂兵页（批复 20261020）：privates.csv 元数据编辑 + shoot_evs 弹幕分配
@@ -549,6 +557,7 @@ func _build_settings_page() -> Control:
 		spv.text = "旋转中心覆盖显示：%s" % ("开" if spv.button_pressed else "关"))
 	sw_row.add_child(spv)
 	## 内容文件夹配置（③-B 归入；与标题画面选项页同数据源 THXKit.content_dirs）
+	## 【资源管理器浏览 20261114（作者：手动定位处加浏览）】
 	var l2 := Label.new()
 	l2.text = "【内容文件夹】（用户指定目录；内核默认在前、此处追加在后，后扫者覆盖同名）"
 	l2.add_theme_font_size_override("font_size", 16)
@@ -592,6 +601,14 @@ func _settings_content_row(kind: String, label: String) -> HBoxContainer:
 		cur.text = fp
 		_refresh_assets()
 		_set_status("%s 目录已设置：%s" % [label, fp]))
+	var brw := Button.new()
+	brw.text = "浏览"
+	brw.tooltip_text = "用系统资源管理器打开该类资源的当前目录"
+	brw.pressed.connect(func():
+		var dirs: Array = THXKit.content_scan_dirs(kind)
+		var open_dir: String = dirs[dirs.size() - 1] if not dirs.is_empty() else "res://"
+		OS.shell_open(ProjectSettings.globalize_path(open_dir)))
+	row.add_child(brw)
 	clr.pressed.connect(func():
 		THXKit.set_content_dir(kind, "")
 		DanmakuTex.invalidate_scan()
@@ -1561,12 +1578,14 @@ func _on_file_selected(path: String) -> void:
 		"save_thxp":
 			_save_package(path, "thxp")
 			_project_path = path ## 【工程路径记录 20261112】退出保存/再次保存用
+			_recent_write(path) ## 【继续按钮目标 20261114】
 		"save_thxe":
 			_save_package(path, "thxe")
 		"load_thx":
 			_load_package(path)
 			if path.ends_with(".thxp"):
 				_project_path = path ## 载入工程=成为当前工程
+			_recent_write(path) ## 【继续按钮目标 20261114】
 		"import_tex":
 			_import_texture(path)
 
@@ -2841,7 +2860,7 @@ func _open_preview_window() -> void:
 	stage.ev = ev
 	_preview_window.add_child(stage)
 	_preview_window.close_requested.connect(func(): _preview_window.queue_free())
-	get_tree().root.add_child(_preview_window)
+	add_child(_preview_window) ## 【空转族修 20261114】随编辑器场景释放（不残留 root）
 	_preview_window.show()
 	_set_status("弹幕预览已打开：在预览窗内按 Z 发射 %s（可反复按，Esc 关闭）" % ev.event_name)
 	## 【批复 2026-10-02】[Z] 的定义已改为"试炼场中让角色发射该弹幕"

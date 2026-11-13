@@ -10,6 +10,8 @@ extends Control
 ## =============================================================
 
 const MENU_ITEMS := [
+	{"id": "continue", "label": "继续（上次工程）"},
+	{"id": "playthxe", "label": "打开 .thxe 就地游玩"},
 	{"id": "editor", "label": "编辑器"},
 	{"id": "docs", "label": "帮助文档"},
 	{"id": "options", "label": "选项"},
@@ -75,11 +77,46 @@ func _build_bg() -> void:
 	deco.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	add_child(deco)
 
+## 【继续 20261114（作者裁定）】标题正中首项——读上次工程 thxp
+## （最近文件记录 user://thx_gamekit/recent.txt；目标=开发者自己的游戏 thxp）
+const RECENT_PATH := "user://thx_gamekit/recent.txt"
+
+func _recent_read() -> String:
+	if FileAccess.file_exists(RECENT_PATH):
+		return FileAccess.get_file_as_string(RECENT_PATH).strip_edges()
+	return ""
+
+func _recent_write(path: String) -> void:
+	DirAccess.make_dir_recursive_absolute(RECENT_PATH.get_base_dir())
+	var f := FileAccess.open(RECENT_PATH, FileAccess.WRITE)
+	if f != null:
+		f.store_string(path)
+		f.close()
+
+func _on_continue() -> void:
+	var last := _recent_read()
+	if last == "" or not FileAccess.file_exists(last):
+		_open_panel_msg("继续", "没有上次工程记录（先在编辑器里打开/保存一个 .thxp）")
+		return
+	THXKit.load_thx(last)
+	_recent_write(last)
+	GameGlobals.goto_scene("res://scenes/danmaku_editor.tscn")
+
+func _open_panel_msg(title: String, msg: String) -> void:
+	var p := _open_panel(title)
+	var l := Label.new()
+	l.text = msg
+	l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	l.custom_minimum_size = Vector2(400, 0)
+	p.add_child(l)
+
 func _on_menu(id: String) -> void:
 	_close_panel()
 	match id:
-		"editor":
-			GameGlobals.goto_scene("res://scenes/danmaku_editor.tscn")
+		"continue":
+			_on_continue()
+		"playthxe":
+			_open_thxe_dialog()
 		"docs":
 			_open_docs()
 		"options":
@@ -200,6 +237,15 @@ func _content_row(kind: String, label: String) -> HBoxContainer:
 		cur.text = fp
 		print("[标题-选项] %s → %s" % [kind, fp]))
 	row.add_child(pick)
+	## 【资源管理器浏览 20261114（作者：分组资源加浏览导入）】打开当前目录（未设=内核默认）
+	var browse := Button.new()
+	browse.text = "浏览"
+	browse.tooltip_text = "用系统资源管理器打开该类资源的当前目录（可直接拖文件进/出）"
+	browse.pressed.connect(func():
+		var bdirs: Array = THXKit.content_scan_dirs(kind)
+		var open_dir: String = bdirs[bdirs.size() - 1] if not bdirs.is_empty() else "res://"
+		OS.shell_open(ProjectSettings.globalize_path(open_dir)))
+	row.add_child(browse)
 	var clr := Button.new()
 	clr.text = "清除"
 	clr.focus_mode = Control.FOCUS_NONE
@@ -249,6 +295,24 @@ func _open_about() -> void:
 		var l := Label.new()
 		l.text = line
 		box.add_child(l)
+
+## 【thxe 直玩 20261114（作者批准 ModBox 式生态）】选 thxe→装载（签名强校验）
+## →试炼场式直接玩（事件/时间轴全部就位）
+func _open_thxe_dialog() -> void:
+	var dlg := FileDialog.new()
+	dlg.access = FileDialog.ACCESS_FILESYSTEM
+	dlg.file_mode = FileDialog.FILE_MODE_OPEN_FILE
+	dlg.filters = PackedStringArray(["*.thxe ; THX发布包（签名强校验）"])
+	dlg.size = Vector2i(720, 480)
+	add_child(dlg)
+	dlg.file_selected.connect(func(fp: String):
+		var names: Array = THXKit.load_thx(fp)
+		if names.is_empty():
+			_open_panel_msg("打开失败", "thxe 装载失败（签名校验不通过或包损坏）")
+			return
+		_recent_write(fp)
+		GameGlobals.goto_scene("res://scenes/trial_ground.tscn"))
+	dlg.popup_centered()
 
 ## —— 背景暗纹装饰（作者资产到位后整类删除）——
 class TitleDeco:
