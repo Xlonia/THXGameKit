@@ -8,3 +8,5 @@ addons/thx_gamekit/data/*.translation
 addons/thx_gamekit/thx_gamekit.gdextension*
 addons/thx_gamekit/extension/
 addons/thx_gamekit/bin/
+# thxp 引用格式资源目录（作者 20261114：本地产物不入库；范例/示例文件特别指出的除外）
+projectdata/

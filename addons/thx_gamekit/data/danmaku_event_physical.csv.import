@@ -6,7 +6,7 @@ uid="uid://c0itbrxculcnq"
 
 [deps]
 
-source_file="res://addons/thxgamekit/kit/addons/thx_gamekit/data/danmaku_event_physical.csv"
+source_file="res://addons/thx_gamekit/data/danmaku_event_physical.csv"
 
 [params]
 
