@@ -35,8 +35,34 @@ func _ready() -> void:
 		print("WINDOW_FAIL 保存按钮未找到")
 		get_tree().quit(1)
 		return
-	print("[probe] T+%dms 面板就绪 点击保存并退出" % (Time.get_ticks_msec() - t_click))
-	save_btn.pressed.emit() ## 语义层触发（面板按钮=编辑器树内 Control）
+	print("[probe] T+%dms 面板就绪" % (Time.get_ticks_msec() - t_click))
+	## 【拟真鼠标 20261114（作者批准）】warp 真光标到按钮屏幕坐标+屏幕系
+	## parse_input_event（OS 鼠标位置+全局管线——最接近真人点击）
+	var btn_screen: Vector2 = save_btn.get_global_rect().get_center()
+	var screen_pt: Vector2 = Vector2(get_window().position) + btn_screen ## Vector2i+Vector2 需显式转换
+	Input.warp_mouse(screen_pt)
+	await get_tree().process_frame
+	print("[probe] 光标已 warp @屏幕%s（按钮局部%s）" % [str(screen_pt), str(btn_screen)])
+	var mm := InputEventMouseMotion.new()
+	mm.position = btn_screen
+	mm.global_position = btn_screen
+	Input.parse_input_event(mm)
+	await get_tree().process_frame
+	var mb := InputEventMouseButton.new()
+	mb.position = btn_screen
+	mb.global_position = btn_screen
+	mb.button_index = MOUSE_BUTTON_LEFT
+	mb.pressed = true
+	Input.parse_input_event(mb)
+	await get_tree().process_frame
+	var mb2 := InputEventMouseButton.new()
+	mb2.position = btn_screen
+	mb2.global_position = btn_screen
+	mb2.button_index = MOUSE_BUTTON_LEFT
+	mb2.pressed = false
+	Input.parse_input_event(mb2)
+	_phase = "wait"
+	_t0 = Time.get_ticks_msec()
 	_phase = "wait"
 	_t0 = Time.get_ticks_msec()
 func _process(_d: float) -> void:
