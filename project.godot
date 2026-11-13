@@ -27,4 +27,4 @@ display/window/low_processor_usage_mode=true
 
 [editor_plugins]
 
-enabled=PackedStringArray("addons/thx_gamekit/plugin.cfg")
+enabled=PackedStringArray("res://addons/thx_gamekit/plugin.cfg")
