@@ -50,24 +50,28 @@ func _ready() -> void:
 	await get_tree().process_frame
 	var center: Vector2 = save_btn.get_global_rect().get_center()
 	print("[probe] 窗口聚焦=%s 注入点击 @%s（按钮=%s 全局=%s）" % [win.has_focus(), str(center), save_btn.text, str(save_btn.get_global_rect())])
+	## 【路由修正 20261114】embed=false 时编辑器在 OS 子窗口（独立 viewport）——
+	## parse_input_event 全局注入只达根 viewport；改用编辑器所在 viewport 的
+	## push_input（GUI 层路由正确；OS 层真鼠标点击=作者 F5 验证）
+	var vp: Viewport = _ed.get_viewport()
 	var mm := InputEventMouseMotion.new()
 	mm.position = center
 	mm.global_position = center
-	Input.parse_input_event(mm)
+	vp.push_input(mm)
 	await get_tree().process_frame
 	var mb := InputEventMouseButton.new()
 	mb.position = center
 	mb.global_position = center
 	mb.button_index = MOUSE_BUTTON_LEFT
 	mb.pressed = true
-	Input.parse_input_event(mb)
+	vp.push_input(mb)
 	await get_tree().process_frame
 	var mb2 := InputEventMouseButton.new()
 	mb2.position = center
 	mb2.global_position = center
 	mb2.button_index = MOUSE_BUTTON_LEFT
 	mb2.pressed = false
-	Input.parse_input_event(mb2)
+	vp.push_input(mb2)
 	_phase = "wait_scene"
 	_t0 = Time.get_ticks_msec()
 
