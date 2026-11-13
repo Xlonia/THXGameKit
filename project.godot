@@ -14,15 +14,12 @@ config/name="THXGameKit"
 config/description="弹幕专题游戏制作内核（次级引擎）——弹幕运行时/事件/时间轴/角色数据基底/弹幕编辑器"
 run/main_scene="res://scenes/title_menu.tscn"
 config/features=PackedStringArray("4.7")
+run/max_fps=60
 
 [autoload]
 
 THXKit="*res://addons/thx_gamekit/core/kit.gd"
 GameGlobals="*res://addons/thx_gamekit/editor/game_globals_compat.gd"
-
-[application]
-
-run/max_fps=60
 
 [display]
 

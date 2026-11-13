@@ -40,18 +40,7 @@ func save_timeline_gd(tl: TimelineData) -> void:
 func reload_official() -> void:
 	THXKit.reload_official()
 
-var _scene_holder: Node = null ## 【手动场景管理 20261114】绕开 change_scene_to_file 的
-## 卸载→挂载空隙（空转窗口：物理 tick 空推+渲染无节流=作者 14958fps 空转根因）
-
 func goto_scene(res_path: String) -> void:
-	## 手动同步切换：旧场景同帧释放+新场景同帧挂载——无空隙帧
-	var tree := get_tree()
-	var res: PackedScene = load(res_path)
-	if res == null:
-		push_error("[goto_scene] 场景加载失败：" + res_path)
-		return
-	if _scene_holder != null and is_instance_valid(_scene_holder):
-		_scene_holder.queue_free()
-	_scene_holder = res.instantiate()
-	tree.root.add_child(_scene_holder)
-	tree.current_scene = _scene_holder
+	## 【手动切场景撤销 20261114（作者：换思路多找原因）】回 change_scene_to_file——
+	## m54 手动版在作者机 nodes=1（新场景未挂载）vs 我探针挂载成功——差异待查
+	get_tree().change_scene_to_file(res_path)
