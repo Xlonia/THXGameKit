@@ -38,8 +38,6 @@ func _ready() -> void:
 	print("[标题] _build_bg 完成 +%dms" % (Time.get_ticks_msec() - _t0))
 	## 标题
 	var title := Label.new()
-	## 标题
-	var title := Label.new()
 	title.text = "THXGameKit"
 	title.add_theme_font_size_override("font_size", 44)
 	title.set_anchors_and_offsets_preset(Control.PRESET_CENTER_TOP)
