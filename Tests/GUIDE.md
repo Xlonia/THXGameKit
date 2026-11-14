@@ -27,6 +27,7 @@
 | fps_min_probe | 最小帧率检测（真窗口） | fps 60 |
 | fps_3phase_probe | 标题/编辑器/回标题 三段帧率（真窗口） | 每段 fps 数据 |
 | window_exit_probe | 退出链真窗口取证（编辑器→面板→点击→回标题） | WINDOW_EXIT_OK |
+| exit_probe | 退出链 headless 自动验证（挂根 Window→_after_exit("quit")→进程须自退 exit 0；exit 2/timeout=卡死复现） | EXIT_PROBE_BEGIN+exit 0 |
 
 ## 运行方式
 
@@ -47,6 +48,6 @@ Godot_exe --path 工程目录 res://Tests/kit_smoke.tscn
 ## 注意事项
 
 - **fps_* 探针需真窗口跑**（headless 无渲染无意义）
-- **diag_sentinel** = 哨兵自动取证（title_menu._ready 自动挂载，不需手动跑）
+- **diag_sentinel** = 哨兵取证（20261114 起不再自动挂载——空转专案结案；需要时按 diag_sentinel.gd 自行实例化）
 - **哨兵 csv 落盘位置**：`user://diag_sentinel_*.csv`
 - **th75 宿主侧测试**：th75/Tests/wrap_*.tscn（wrapper 模式挂 root）
