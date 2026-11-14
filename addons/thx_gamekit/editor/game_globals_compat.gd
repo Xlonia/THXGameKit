@@ -43,4 +43,7 @@ func reload_official() -> void:
 func goto_scene(res_path: String) -> void:
 	## 【手动切场景撤销 20261114（作者：换思路多找原因）】回 change_scene_to_file——
 	## m54 手动版在作者机 nodes=1（新场景未挂载）vs 我探针挂载成功——差异待查
+	print("[goto_scene] 切换到 %s 开始" % res_path)
+	var t0 := Time.get_ticks_msec()
 	get_tree().change_scene_to_file(res_path)
+	print("[goto_scene] change_scene_to_file 返回 +%dms" % (Time.get_ticks_msec() - t0))

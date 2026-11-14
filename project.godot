@@ -21,20 +21,15 @@ run/max_fps=60
 THXKit="*res://addons/thx_gamekit/core/kit.gd"
 GameGlobals="*res://addons/thx_gamekit/editor/game_globals_compat.gd"
 
-[rendering]
-
-## 【渲染后端 20261114（作者卡死数据定性：Vulkan 同步风暴——Optimus 双 GPU
-## 每帧 GPU 同步 400ms；2D 内核不需要 Vulkan 特性）】
-## 切 Compatibility（OpenGL3）——弹幕/编辑器全部 2D，GL 完全够用且驱动兼容性好
-renderer/rendering_method="gl_compatibility"
-renderer/rendering_method.mobile="gl_compatibility"
-
 [display]
 
-; vsync 禁用+max_fps=60 节流（20261114：vsync 等待异常=每帧 140ms 缓冲交换阻塞——max_fps 精确节流替代）
 display/window/vsync/vsync_mode=0
-; low_processor_usage_mode 已移除（20261114：静置降帧到 5fps=作者卡死观感直接来源）
 
 [editor_plugins]
 
 enabled=PackedStringArray("res://addons/thx_gamekit/plugin.cfg")
+
+[rendering]
+
+renderer/rendering_method.mobile="gl_compatibility"
+"##ãæ¸²æåç«¯20261114ï¼ä½èå¡æ­»æ°æ®å®æ§ï¼Vulkanåæ­¥é£æ´ââOptimusåGPU##æ¯å¸§GPUåæ­¥400msï¼2Dåæ ¸ä¸éè¦Vulkanç¹æ§ï¼ã##åCompatibilityï¼OpenGL3ï¼ââå¼¹å¹/ç¼è¾å¨å¨é¨2Dï¼GLå®å¨å¤ç¨ä¸é©±å¨å¼å®¹æ§å¥½renderer/rendering_method"="gl_compatibility"
