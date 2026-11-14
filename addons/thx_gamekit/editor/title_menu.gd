@@ -137,8 +137,6 @@ func _launch_editor_process() -> void:
 		push_error("[编辑器] 独立进程启动失败")
 
 func _on_menu(id: String) -> void:
-
-func _on_menu(id: String) -> void:
 	_close_panel()
 	match id:
 		"continue":
