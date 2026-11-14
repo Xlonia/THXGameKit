@@ -814,10 +814,13 @@ func _build_menubar() -> MenuBar:
 	var open_filter := "*.thxp ; THX工程,*.thx ; THX成品,*.thxe ; THX发布包"
 	if _in_window_mode():
 		## 窗口模式（独立进程=本进程主场景）：退出=关窗=get_tree().quit（标题进程仍在）
-		items = ["新建", "打开(.thxp/.thx/.thxe)", "导入材质", "保存(.thxp 工程)", "另存为(.thxp)", "导出拓展(.thx)", "导出发布包(.thxe)", "关闭编辑器窗口"]
+		## 【m69 作者裁定】部署态=thxp 存档语义是「另存」——按钮名随之
+		var save_label := "另存项目(.thxp)" if _is_project_env() else "保存(.thxp 工程)"
+		items = ["新建", "打开(.thxp/.thx/.thxe)", "导入材质", save_label, "另存为(.thxp)", "导出拓展(.thx)", "导出发布包(.thxe)", "关闭编辑器窗口"]
 	else:
 		## 嵌入宿主进程（遗留路径）：退出=回宿主标题
-		items = ["新建", "打开(.thxp/.thx/.thxe)", "导入材质", "保存(.thxp 工程)", "另存为(.thxp)", "导出拓展(.thx)", "导出发布包(.thxe)", "返回游戏标题"]
+		var save_label2 := "另存项目(.thxp)" if _is_project_env() else "保存(.thxp 工程)"
+		items = ["新建", "打开(.thxp/.thx/.thxe)", "导入材质", save_label2, "另存为(.thxp)", "导出拓展(.thx)", "导出发布包(.thxe)", "返回游戏标题"]
 	if _is_project_env():
 		items.append("导出为官方数据") ## 工程环境=官方表写回入口（原实现从未加入、erase 是无效空操作——敷衍修正 20261114）
 	for i in items.size():
@@ -897,8 +900,10 @@ func _on_menu_file(item: String) -> void:
 			_file_dialog.file_mode = FileDialog.FILE_MODE_OPEN_FILE
 			_file_dialog.filters = PackedStringArray(["*.png ; PNG图片"])
 			_file_dialog.popup_centered(Vector2i(900, 600))
-		"保存(.thxp 工程)":
+		"保存(.thxp 工程)", "另存项目(.thxp)":
 			_save_flow(false) ## 已有工程=覆盖保存零对话框；新工程=系统对话框（Ctrl+S 同）
+			## 【m69 作者裁定】部署态（th75 等）下此按钮=「另存项目」——
+			## 真正的覆盖保存=「导出为官方数据」（对本地部署项目直接修改）
 		"另存为(.thxp)":
 			_save_flow(true) ## 恒弹系统对话框（Ctrl+Shift+S 同）
 		"导出拓展(.thx)":
@@ -1701,7 +1706,9 @@ func _confirm_exit(mode: String) -> void:
 	box.add_child(btns)
 	var save_b := Button.new()
 	save_b.name = "ExitSave"
-	save_b.text = "保存并退出"
+	## 【m69 作者裁定】部署态=thxp 存档语义是「另存」（真保存=官方数据覆写，
+	## 退出保存链已含 _on_export_official）
+	save_b.text = "另存并退出" if _is_project_env() else "保存并退出"
 	save_b.pressed.connect(func():
 		_close_exit_panel()
 		_exit_save_quiet(mode))
@@ -1955,11 +1962,20 @@ func _on_export_official() -> void:
 	var copied := 0
 	for tex_name in GameGlobals.editor_textures:
 		var src := _texture_cache_path(tex_name)
-		var dst := "res://addons/thx_gamekit/data/textures/danmaku16pxs/%s.png" % tex_name ## 【内核化】
+		## 【m69】kpath 包裹（部署态裸内核路径=拷贝静默失败——m65 漏网点）
+		var dst := THXKit.kpath("res://addons/thx_gamekit/data/textures/danmaku16pxs").path_join("%s.png" % tex_name)
 		if FileAccess.file_exists(src) and DirAccess.copy_absolute(ProjectSettings.globalize_path(src), ProjectSettings.globalize_path(dst)) == OK:
 			copied += 1
 	GameGlobals.reload_official()
 	_set_status("已导出为官方数据：%d事件 + %d材质（运行时官方池已刷新）" % [events.size(), copied])
+	## 【m69 作者实测】部署项目=tab 内核配置随导出落盘（此前只写 CSV——
+	## 消弹域勾选等改动重启即丢）→ gameAssetBase/thx_kernel_cfg.json，
+	## kit.gd 启动回读合并（编辑器 tab 与运行时共同生效）
+	var cfg_f := FileAccess.open("res://gameAssetBase/thx_kernel_cfg.json", FileAccess.WRITE)
+	if cfg_f != null:
+		cfg_f.store_string(JSON.stringify(THXKit.scenario_cfg, "  "))
+		cfg_f.close()
+		_set_status("已导出为官方数据 + 内核配置（%d 项）" % THXKit.scenario_cfg.size())
 
 func _texture_cache_path(tex_name: String) -> String:
 	var p := "user://editor_textures/%s.png" % tex_name

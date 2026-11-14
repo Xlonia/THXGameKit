@@ -114,8 +114,27 @@ func _ready() -> void:
 	## 【max_fps 运行时强设 20261114（作者卡死数据：帧率失控 800-1400fps
 	## =project.godot 设置未生效的双保险）】60fps 上限运行时强制
 	Engine.max_fps = 60
+	## 【m69】部署项目内核配置回读（gameAssetBase/thx_kernel_cfg.json——
+	## 编辑器"导出为官方数据"时写入）：编辑器 tab 与运行时共同生效；
+	## 编辑器环境也读（主屏 tab 须显示上次保存值）
+	_load_deployed_cfg()
 	if Engine.is_editor_hint():
 		return
+func _load_deployed_cfg() -> void:
+	## 【m69】部署项目内核配置回读（res://gameAssetBase/thx_kernel_cfg.json）：
+	## 编辑器"导出为官方数据"时随官方表写入 scenario_cfg——文件键优先合并
+	var p := "res://gameAssetBase/thx_kernel_cfg.json"
+	if not FileAccess.file_exists(p):
+		return
+	var f := FileAccess.open(p, FileAccess.READ)
+	if f == null:
+		return
+	var data: Variant = JSON.parse_string(f.get_as_text())
+	f.close()
+	if data is Dictionary:
+		for k in data:
+			scenario_cfg[k] = data[k]
+
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(PROJECTS_DIR))
 	_load_official()
 	_load_official_timelines() ## 运行时限行（编辑器态环境门已 return——parse_gd 不被扫描）

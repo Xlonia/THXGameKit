@@ -28,6 +28,16 @@ func _kit_field(prop: String) -> Variant:
 	var k = _kit()
 	if k != null:
 		return k.get(prop)
+	## 【m69 作者实测修复】Godot 编辑器主屏 tab（无 autoload）环境镜像补全——
+	## 场景树页的 editor_timelines 为 null 时整页构建中断=主屏 tab 大部分
+	## 空白（运行调试/独立进程下 THXKit 在=正常，作者对照现象吻合）
+	match prop:
+		"editor_timelines":
+			return []
+		"SCENARIO_DIR":
+			return "user://thx_gamekit/scenarios"
+		"PROJECTS_DIR":
+			return "user://thx_gamekit"
 	return _kit_mirror.get(prop)
 
 func _kit_set(prop: String, v) -> void:
@@ -41,6 +51,19 @@ func _kit_call(method: String, args: Array) -> Variant:
 	var k = _kit()
 	if k != null and k.has_method(method):
 		return k.callv(method, args)
+	## 【m69】编辑器环境 kpath 兜底：按本脚本自身挂载路径推导内核根
+	## （GameKit 独立=res://；th75 宿主=res://addons/thxgamekit/kit）——
+	## UI 画布/逻辑链页的 canvas 脚本加载原为 null=页面空白
+	if method == "kpath" and not args.is_empty():
+		var sp := ""
+		var sc := get_script()
+		if sc != null:
+			sp = String(sc.resource_path)
+		var marker := "/addons/thx_gamekit/editor/scenario_editor.gd"
+		var root := "res://"
+		if sp != "" and sp.contains(marker):
+			root = sp.trim_suffix(marker)
+		return root.path_join(String(args[0]).trim_prefix("res://"))
 	return null
 
 var _subs: TabContainer
