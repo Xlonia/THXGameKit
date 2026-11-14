@@ -111,6 +111,9 @@ func _ready() -> void:
 	## 需要类型与路径可用）；**重装载（官方表 CSV/mods 扫描）仅运行时**——
 	## 编辑器环境批量 IO 会拖慢编辑器启动且与编辑器工作集冲突
 	_resolve_paths()
+	## 【max_fps 运行时强设 20261114（作者卡死数据：帧率失控 800-1400fps
+	## =project.godot 设置未生效的双保险）】60fps 上限运行时强制
+	Engine.max_fps = 60
 	if Engine.is_editor_hint():
 		return
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(PROJECTS_DIR))
