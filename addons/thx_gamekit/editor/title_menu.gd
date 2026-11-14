@@ -31,15 +31,7 @@ const VERSION_TEXT := "THXGameKit 内核 v0.1.0（随 TH75 v0.0.9 开发）｜MI
 var _panel: PanelContainer = null ## 当前弹出面板（同类互斥）
 
 func _ready() -> void:
-	## 【卡死专案逐步诊断 20261114】每段耗时 print（作者 F5 控制台直接可见卡点）
-	var _t0 := Time.get_ticks_msec()
-	print("[标题] _ready 开始")
-	## 【卡死取证哨兵 m57 恢复（m60 rebase 吞分支——与 editor 分支同型事故）】
-	var diag := Node.new()
-	diag.set_script(load("res://Tests/diag_sentinel.gd"))
-	get_tree().root.add_child.call_deferred(diag)
 	_build_bg()
-	print("[标题] _build_bg 完成 +%dms" % (Time.get_ticks_msec() - _t0))
 	## 标题
 	var title := Label.new()
 	title.text = "THXGameKit"
@@ -66,7 +58,6 @@ func _ready() -> void:
 		box.add_child(btn)
 	if box.get_child_count() > 0:
 		(box.get_child(0) as Button).grab_focus()
-	print("[标题] UI 构建中… +%dms" % (Time.get_ticks_msec() - _t0))
 	## 版本注记
 	var foot := Label.new()
 	foot.text = VERSION_TEXT + " ｜ github.com/Xlonia/THXGameKit"
@@ -74,7 +65,6 @@ func _ready() -> void:
 	foot.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_LEFT)
 	foot.position.y -= 30
 	add_child(foot)
-	print("[标题] _ready 全部完成 +%dms" % (Time.get_ticks_msec() - _t0))
 
 ## —— 背景（占位：作者背景图+背景动画脚本上传后替换本函数）——
 func _build_bg() -> void:
@@ -82,11 +72,11 @@ func _build_bg() -> void:
 	bg.color = Color(0.05, 0.06, 0.1)
 	bg.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	add_child(bg)
-	## 暗纹装饰（【卡死专案 A/B 测试 20261114：临时禁用 TitleDeco——直跑帧率对照】
-	## 作者资产到位后整类删除；实验结论回填后恢复或永久移除）
-	# var deco := TitleDeco.new()
-	# deco.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	# add_child(deco)
+	## 暗纹装饰（空转专案 A/B 实验已证无罪：禁用与否帧率同差——20261114 恢复；
+	## 作者背景图+动画脚本到位后整类删除）
+	var deco := TitleDeco.new()
+	deco.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	add_child(deco)
 
 ## 【继续 20261114（作者裁定）】标题正中首项——读上次工程 thxp
 ## （最近文件记录 user://thx_gamekit/recent.txt；目标=开发者自己的游戏 thxp）

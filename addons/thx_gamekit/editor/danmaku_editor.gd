@@ -144,6 +144,8 @@ var _pages: Dictionary = {}
 var _status: Label
 var _file_dialog: FileDialog
 var _pending_action := ""
+var _quit_after_save := false ## 【退出保存流 20261114】对话框保存完成后才结束编辑器进程
+var _pending_exit_mode := "" ## 同上：退出模式暂存（close/title/quit）
 var _exit_panel: PanelContainer = null ## 自绘退出确认面板（20261112 换 ConfirmationDialog）
 var _project_path := "" ## 当前 .thxp 工程路径（保存/退出存取用；空=未保存过）
 ## 【③-B 顶栏标签页 20261112】编辑器/设置/探针 三页（设置/探针懒建）
@@ -319,6 +321,14 @@ func _notification(what: int) -> void:
 		if _is_project_env():
 			GameGlobals.sync_official_events(events) ## 退出编辑器兜底落盘
 
+## 【键位 20261114（作者指定）】Ctrl+S=保存 / Ctrl+Shift+S=另存——用 _input 前置：
+## LineEdit 焦点内也响应（_unhandled_key 会被文本框吞掉），标记 handled 防 S 落入文本框
+func _input(event: InputEvent) -> void:
+	if event is InputEventKey and event.pressed and not event.echo \
+			and event.keycode == KEY_S and (event.ctrl_pressed or event.command_pressed):
+		get_viewport().set_input_as_handled()
+		_save_flow(event.shift_pressed)
+
 func _ready() -> void:
 	_build_ui()
 	if GameGlobals.editor_events.is_empty():
@@ -472,8 +482,8 @@ func _build_ui() -> void:
 	_file_dialog = FileDialog.new()
 	_file_dialog.use_native_dialog = true
 	_file_dialog.access = FileDialog.ACCESS_FILESYSTEM
-	_file_dialog.use_native_dialog = true
 	_file_dialog.file_selected.connect(_on_file_selected)
+	_file_dialog.canceled.connect(_on_dialog_canceled) ## 【取消 20261114】退出保存流取消=留在编辑器
 	_dialog_reparent(_file_dialog, Vector2i(), false) ## 仅挂载，不弹出（修复：开屏弹保存窗）
 
 ## —— 顶栏标签页切换（编辑器/设置/探针；设置探针懒建）——
@@ -803,15 +813,13 @@ func _build_menubar() -> MenuBar:
 	## （mod：事件+材质）/ .thxe=游戏发布包（事件+时间轴+材质+角色杂兵表）
 	var open_filter := "*.thxp ; THX工程,*.thx ; THX成品,*.thxe ; THX发布包"
 	if _in_window_mode():
-		## 窗口模式：无"返回游戏标题"（那会切走游戏主画面导致假死观感），
-		## 关闭窗口即退出编辑器
-		items = ["新建", "打开(.thxp/.thx/.thxe)", "导入材质", "保存(.thxp 工程)", "导出成品(.thx)", "导出发布包(.thxe)", "关闭编辑器窗口"]
+		## 窗口模式（独立进程=本进程主场景）：退出=关窗=get_tree().quit（标题进程仍在）
+		items = ["新建", "打开(.thxp/.thx/.thxe)", "导入材质", "保存(.thxp 工程)", "另存为(.thxp)", "导出拓展(.thx)", "导出发布包(.thxe)", "关闭编辑器窗口"]
 	else:
-		## 【直通退出 20261112】"退出游戏"合并入"返回游戏标题"——所有退出
-		## 路径=静默保存工程+直接回标题（零交互，卡死面=零）
-		items = ["新建", "打开(.thxp/.thx/.thxe)", "导入材质", "保存(.thxp 工程)", "导出成品(.thx)", "导出发布包(.thxe)", "返回游戏标题"]
-		if not _is_project_env():
-			items.erase("导出为官方数据") ## 【内核化】无游戏数据目录=官方数据导出无意义（防污染仓库）
+		## 嵌入宿主进程（遗留路径）：退出=回宿主标题
+		items = ["新建", "打开(.thxp/.thx/.thxe)", "导入材质", "保存(.thxp 工程)", "另存为(.thxp)", "导出拓展(.thx)", "导出发布包(.thxe)", "返回游戏标题"]
+	if _is_project_env():
+		items.append("导出为官方数据") ## 工程环境=官方表写回入口（原实现从未加入、erase 是无效空操作——敷衍修正 20261114）
 	for i in items.size():
 		file_menu.add_item(items[i], i)
 	file_menu.id_pressed.connect(func(id): _on_menu_file(items[id]))
@@ -890,18 +898,16 @@ func _on_menu_file(item: String) -> void:
 			_file_dialog.filters = PackedStringArray(["*.png ; PNG图片"])
 			_file_dialog.popup_centered(Vector2i(900, 600))
 		"保存(.thxp 工程)":
-			_pending_action = "save_thxp"
-			_file_dialog.file_mode = FileDialog.FILE_MODE_SAVE_FILE
-			_file_dialog.filters = PackedStringArray(["*.thxp ; THX工程"])
-			_file_dialog.current_dir = ProjectSettings.globalize_path(THXKit.PROJECTS_DIR) ## 【appdata 默认】
-			_file_dialog.popup_centered(Vector2i(900, 600))
-		"导出拓展(.thx mod/剧情/额外弹幕)":
+			_save_flow(false) ## 已有工程=覆盖保存零对话框；新工程=系统对话框（Ctrl+S 同）
+		"另存为(.thxp)":
+			_save_flow(true) ## 恒弹系统对话框（Ctrl+Shift+S 同）
+		"导出拓展(.thx)":
 			_pending_action = "save_thx"
 			_file_dialog.file_mode = FileDialog.FILE_MODE_SAVE_FILE
 			_file_dialog.filters = PackedStringArray(["*.thx ; THX拓展包(mod/剧情/额外弹幕)"])
 			_file_dialog.current_dir = ProjectSettings.globalize_path(THXKit.PROJECTS_DIR)
 			_file_dialog.popup_centered(Vector2i(900, 600))
-		"导出发布包(.thxe 签名·不可修改)":
+		"导出发布包(.thxe)":
 			_pending_action = "save_thxe"
 			_file_dialog.file_mode = FileDialog.FILE_MODE_SAVE_FILE
 			_file_dialog.filters = PackedStringArray(["*.thxe ; THX发布包(签名·不可修改)"])
@@ -1582,14 +1588,41 @@ func _check_feasibility() -> void:
 ## =============================================================
 ## 文件操作
 ## =============================================================
+## 【保存流 20261114（作者指定）】保存：已有工程=覆盖保存（零对话框）；
+## 新工程=系统资源管理器对话框（native FileDialog）。另存=恒弹对话框。
+func _save_flow(force_dialog: bool) -> void:
+	if _project_path != "" and not force_dialog:
+		_save_package(_project_path, "thxp")
+		_recent_write(_project_path)
+		_set_status("已覆盖保存工程：%s" % _project_path)
+	else:
+		_pending_action = "save_thxp"
+		_file_dialog.file_mode = FileDialog.FILE_MODE_SAVE_FILE
+		_file_dialog.filters = PackedStringArray(["*.thxp ; THX工程"])
+		_file_dialog.current_dir = ProjectSettings.globalize_path(THXKit.PROJECTS_DIR) ## 【appdata 默认】
+		_file_dialog.popup_centered(Vector2i(900, 600))
+
+## 对话框取消：退出保存流中断（清旗标=留在编辑器）
+func _on_dialog_canceled() -> void:
+	if _quit_after_save:
+		_quit_after_save = false
+		_pending_exit_mode = ""
+		_set_status("已取消——留在编辑器（改动未保存，可再 Ctrl+S）")
+
 func _on_file_selected(path: String) -> void:
 	match _pending_action:
 		"save_thx":
 			_save_package(path, "thx")
 		"save_thxp":
 			_save_package(path, "thxp")
-			_project_path = path ## 【工程路径记录 20261112】退出保存/再次保存用
+			if path.ends_with(".thxp"):
+				_project_path = path ## 【工程路径记录 20261112】退出保存/再次保存用
 			_recent_write(path) ## 【继续按钮目标 20261114】
+			if _quit_after_save: ## 【退出保存流 20261114】对话框保存完成→现在才结束进程
+				_quit_after_save = false
+				var m := _pending_exit_mode
+				_pending_exit_mode = ""
+				_after_exit(m)
 		"save_thxe":
 			_save_package(path, "thxe")
 		"load_thx":
@@ -1656,7 +1689,7 @@ func _confirm_exit(mode: String) -> void:
 	t.add_theme_font_size_override("font_size", 18)
 	box.add_child(t)
 	var info := Label.new()
-	var proj := _project_path if _project_path != "" else String(THXKit.PROJECTS_DIR).path_join("untitled.thxp")
+	var proj := _project_path if _project_path != "" else "（新工程——保存并退出时弹出系统对话框选择保存位置）"
 	info.text = "保存并退出 → 存入工程 %s%s\n不保存退出 → 按 draft.csv 还原上次保存点\n取消 → 留在编辑器" % [
 		proj, "" if _is_project_env() else "\n（当前非游戏工程环境：不写回官方数据表）"]
 	info.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -1670,9 +1703,8 @@ func _confirm_exit(mode: String) -> void:
 	save_b.name = "ExitSave"
 	save_b.text = "保存并退出"
 	save_b.pressed.connect(func():
-		_exit_save_quiet()
 		_close_exit_panel()
-		_after_exit(mode))
+		_exit_save_quiet(mode))
 	btns.add_child(save_b)
 	var drop_b := Button.new()
 	drop_b.name = "ExitDrop"
@@ -1695,36 +1727,42 @@ func _confirm_exit(mode: String) -> void:
 			var vp_sz := get_viewport_rect().size
 			_exit_panel.position = ((vp_sz - _exit_panel.get_minimum_size()) * 0.5).floor())
 
-## 静默保存（退出路径共用）：收集表单→draft 还原点→存当前工程 .thxp→
-## 官方数据写回（仅工程环境）
-func _exit_save_quiet() -> void:
+## 退出保存（退出链唯一入口）：已有工程=覆盖保存→官方写回（工程环境）→结束；
+## 新工程=系统对话框选位置（取消=留在编辑器）——保存完成后才由对话框回调退出
+func _exit_save_quiet(mode: String) -> void:
 	if events.is_empty():
+		_after_exit(mode)
 		return
-	_collect_form()
-	_draft_stash() ## 还原点=保存前（draft 机制保留）
-	var proj := _project_path if _project_path != "" else String(THXKit.PROJECTS_DIR).path_join("untitled.thxp")
-	_save_package(proj, "thxp")
-	_project_path = proj
-	if _is_project_env():
-		_on_export_official() ## 官方数据写回=仅工程环境
-	_set_status("已静默保存工程：%s" % proj)
+	if _project_path != "":
+		_save_package(_project_path, "thxp") ## 内含 draft 暂存+表单收集（单一职责，勿在此外重复）
+		_recent_write(_project_path)
+		if _is_project_env():
+			_on_export_official() ## 官方数据写回=仅工程环境
+		_after_exit(mode)
+	else:
+		_pending_exit_mode = mode
+		_quit_after_save = true
+		_save_flow(true)
 
 func _close_exit_panel() -> void:
 	if _exit_panel != null and is_instance_valid(_exit_panel):
 		_exit_panel.queue_free()
 	_exit_panel = null
 
-func _after_exit(mode: String) -> void:
-	## 【窗口化回滚 20261114（作者）】编辑器环境报错链证明窗口化+主屏路线
-	## 需内核 @tool 化（大改造）——回滚替换主窗模式；卡死后续专项
-	match mode:
-		"close":
-			if _in_window_mode():
-				(get_parent() as Window).queue_free()
-		"title":
-			GameGlobals.goto_scene("res://scenes/title_menu.tscn")
-		"quit":
-			GameGlobals.goto_scene("res://scenes/title_menu.tscn") ## 窗口模式关窗+否则回标题
+func _after_exit(_mode: String) -> void:
+	## 【独立进程终版 20261114·推翻旧实现——"退出后卡死"真凶修复】
+	## 编辑器=独立 OS 进程（GameKit 标题菜单/th75 bat 启动=本进程主场景，
+	## parent=根 Window→_in_window_mode()为真）→ 退出=get_tree().quit()：
+	## 标题进程仍在运行，用户自然回到标题窗口。旧实现双病根（实锤）：
+	##   ①"close"=root Window.queue_free()——窗口销毁但进程不死→无窗僵尸进程
+	##     继续耗 GPU/CPU（作者"就算是新 Windows 窗口也退出后卡死"的真凶）
+	##   ②"title"/"quit"=goto_scene(title)——卸载→挂载空帧窗=老空转病根，
+	##   且编辑器进程内多出一个第二标题画面。
+	## 嵌入宿主进程（遗留路径：th75 内嵌实例化，parent 非 Window）→ 回宿主标题。
+	if _in_window_mode():
+		get_tree().quit()
+	else:
+		GameGlobals.goto_scene("res://scenes/title_menu.tscn")
 
 func _save_package(path: String, fmt: String) -> void:
 	## =============================================================
