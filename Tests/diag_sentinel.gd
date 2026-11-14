@@ -10,7 +10,7 @@ var _spin_frames := 0
 var _path := ""
 func _ready() -> void:
 	var t := Time.get_datetime_string_from_system().replace(":", "").replace("-", "")
-	_path = "user://diag_sentinel_%s.csv" % t
+	_path = "user://diag_sentinel_%s_pid%d.csv" % [t, OS.get_process_id()] ## PID 区分多进程（csv 交叉污染防）
 
 func _notification(what: int) -> void:
 	## 【退出落盘 20261114】进程 quit/场景切换时不丢数据
@@ -27,11 +27,14 @@ func _process(_d: float) -> void:
 	var cs := get_tree().current_scene
 	var csname: String = cs.name if cs != null else "null"
 	var sd := DisplayServer.window_get_mode()
-	_rows.append([_frames, fps, "%.4f" % ft, dc, objs, n, orph, csname, sd])
+	var t_proc := Performance.get_monitor(Performance.TIME_PROCESS) * 1000.0
+	var t_phys := Performance.get_monitor(Performance.TIME_PHYSICS_PROCESS) * 1000.0
+	_rows.append([_frames, fps, "%.4f" % ft, dc, objs, n, orph, csname, sd,
+		"%.2f" % t_proc, "%.2f" % t_phys])
 	## 【检测条件修正 20261114（作者反馈哨兵未触发）】max_fps=60 后空转段 fps
 	## 也被压到 60——fps>200 条件永远不触发。改判据=**渲染/树异常**：
 	## ①有场景但零绘制（draw=0 持续 30 帧=渲染停摆）②树空壳（nodes<20）
-	if (dc == 0 and csname != "null") or n < 20:
+	if (dc == 0 and csname != "null") or n < 10:
 		if _spin_start < 0:
 			_spin_start = _frames
 		_spin_frames += 1

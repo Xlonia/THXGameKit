@@ -31,8 +31,7 @@ const VERSION_TEXT := "THXGameKit 内核 v0.1.0（随 TH75 v0.0.9 开发）｜MI
 var _panel: PanelContainer = null ## 当前弹出面板（同类互斥）
 
 func _ready() -> void:
-	## 【卡死取证哨兵 20261114（作者令：多找原因）】挂 root 常驻——空转段
-	## 自动落盘 csv（user://diag_sentinel_*.csv：fps/draw/objects/nodes/场景名/窗口模式）
+	## 【卡死取证哨兵 20261114（已恢复——A/B 测试排除了哨兵嫌疑）】挂 root 常驻
 	var diag := Node.new()
 	diag.set_script(load("res://Tests/diag_sentinel.gd"))
 	get_tree().root.add_child.call_deferred(diag)
@@ -77,10 +76,11 @@ func _build_bg() -> void:
 	bg.color = Color(0.05, 0.06, 0.1)
 	bg.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	add_child(bg)
-	## 暗纹装饰（靛蓝同心环=弹幕意象；作者资产到位即删）
-	var deco := TitleDeco.new()
-	deco.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	add_child(deco)
+	## 暗纹装饰（【卡死专案 A/B 测试 20261114：临时禁用 TitleDeco——直跑帧率对照】
+	## 作者资产到位后整类删除；实验结论回填后恢复或永久移除）
+	# var deco := TitleDeco.new()
+	# deco.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	# add_child(deco)
 
 ## 【继续 20261114（作者裁定）】标题正中首项——读上次工程 thxp
 ## （最近文件记录 user://thx_gamekit/recent.txt；目标=开发者自己的游戏 thxp）
