@@ -1760,7 +1760,11 @@ func _after_exit(_mode: String) -> void:
 	##   且编辑器进程内多出一个第二标题画面。
 	## 嵌入宿主进程（遗留路径：th75 内嵌实例化，parent 非 Window）→ 回宿主标题。
 	if _in_window_mode():
-		get_tree().quit()
+		var w := get_parent() as Window
+		if w == get_tree().root:
+			get_tree().quit() ## 独立进程主场景（parent=根 Window）：结束本进程（标题进程仍在）
+		else:
+			w.queue_free() ## 宿主进程子窗口（parent=次级 Window）：只关本窗，宿主进程不动
 	else:
 		GameGlobals.goto_scene("res://scenes/title_menu.tscn")
 
@@ -1996,15 +2000,14 @@ func _on_preview() -> void:
 	GameGlobals.editor_events = events
 	GameGlobals.preview_event_name = events[selected_idx].event_name if selected_idx >= 0 and selected_idx < events.size() else "demo_aimed"
 	GameGlobals.arena_mode = "preview"
-	## 【0.0.9·预览（作者 20261110 终裁=0.0.7-legacy/0.0.8 行为）】goto_scene
-	## 替换**主窗口**为试炼场（编辑器子窗口=真 OS 窗口保持；gui_embed_subwindows
-	## 已复位到 _ready）；退出试炼场=Esc 面板按钮回本场景（编辑器 _ready 重载工作集）
-	## 【独立 OS 窗口试炼场 20261114】不切场景——试炼场=新 OS 窗口
+	## 【0.0.9·预览】试炼场=**子窗口**（20261114 终版）：不切场景、不换主窗——
+	## 窗口随编辑器进程走；"退出试炼场"=关窗回编辑器（trial_ground 侧路由）
 	var tw := Window.new()
 	tw.title = "试炼场 — THXGameKit"
 	tw.size = Vector2i(560, 560)
 	var tg := Node2D.new()
-	tg.set_script(load("res://addons/thx_gamekit/editor/trial_ground.gd"))
+	## 【kpath 20261114】内核逻辑路径→实际挂载点（th75 宿主下裸路径=脚本加载失败）
+	tg.set_script(load(THXKit.kpath("res://addons/thx_gamekit/editor/trial_ground.gd")))
 	tw.add_child(tg)
 	add_child(tw)
 	tw.show()
@@ -2667,8 +2670,10 @@ func _build_chara_page() -> Control:
 				tinfo.text = "%s　%d×%d（%d 帧）" % [tx.resource_path.get_file(),
 					tx.get_width(), tx.get_height(), int(ct["frames"])]
 		imp_dlg.file_selected.connect(func(fp: String):
-			var dst := ProjectSettings.globalize_path("res://addons/thx_gamekit/data/textures/chars/%s.PNG" % cname)
-			DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path("res://addons/thx_gamekit/data/textures/chars"))
+			## 【kpath 20261114】内核默认贴图目录=逻辑路径（th75 宿主裸路径=在宿主仓库乱建目录）
+			var kdir := THXKit.kpath("res://addons/thx_gamekit/data/textures/chars")
+			var dst := ProjectSettings.globalize_path(kdir.path_join("%s.PNG" % cname))
+			DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(kdir))
 			var err := DirAccess.copy_absolute(fp, dst)
 			if err == OK:
 				CharaTex.invalidate(cname, str(edit_row.get("NameZH", "")))
@@ -2685,7 +2690,7 @@ func _build_chara_page() -> Control:
 		var clr_b := Button.new()
 		clr_b.text = "清除贴图（改名 .bak 可恢复）"
 		clr_b.pressed.connect(func():
-			var dst := ProjectSettings.globalize_path("res://addons/thx_gamekit/data/textures/chars/%s.PNG" % cname)
+			var dst := ProjectSettings.globalize_path(THXKit.kpath("res://addons/thx_gamekit/data/textures/chars").path_join("%s.PNG" % cname))
 			if FileAccess.file_exists(dst):
 				DirAccess.rename_absolute(dst, dst + ".bak")
 				CharaTex.invalidate(cname, str(edit_row.get("NameZH", "")))
@@ -2915,7 +2920,7 @@ func _open_preview_window() -> void:
 	_preview_window = Window.new()
 	_preview_window.title = "弹幕预览 — %s（Z=发射  Esc=关闭）" % ev.event_name
 	_preview_window.size = Vector2i(460, 560)
-	var stage: Node2D = (load("res://addons/thx_gamekit/editor/danmaku_preview_stage.gd") as GDScript).new()
+	var stage: Node2D = (load(THXKit.kpath("res://addons/thx_gamekit/editor/danmaku_preview_stage.gd")) as GDScript).new()
 	stage.ev = ev
 	_preview_window.add_child(stage)
 	_preview_window.close_requested.connect(func(): _preview_window.queue_free())
