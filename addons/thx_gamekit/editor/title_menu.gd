@@ -34,6 +34,10 @@ func _ready() -> void:
 	## 【卡死专案逐步诊断 20261114】每段耗时 print（作者 F5 控制台直接可见卡点）
 	var _t0 := Time.get_ticks_msec()
 	print("[标题] _ready 开始")
+	## 【卡死取证哨兵 m57 恢复（m60 rebase 吞分支——与 editor 分支同型事故）】
+	var diag := Node.new()
+	diag.set_script(load("res://Tests/diag_sentinel.gd"))
+	get_tree().root.add_child.call_deferred(diag)
 	_build_bg()
 	print("[标题] _build_bg 完成 +%dms" % (Time.get_ticks_msec() - _t0))
 	## 标题
