@@ -121,33 +121,22 @@ func _open_panel_msg(title: String, msg: String) -> void:
 	l.custom_minimum_size = Vector2(400, 0)
 	p.add_child(l)
 
-## 【独立 OS 窗口编辑器 20261114（作者终裁方案）】编辑器=独立 OS 窗口
-## 弹出（embed_subwindows=false 使其为真 OS 窗口），标题画面常驻主窗
-## **不切场景**——编辑器退出=关窗口=零 change_scene=零空转
-## 区别于之前失败尝试：本次 Control 明确设置 FULL_RECT anchors（填满 Window）
-var _editor_win: Window = null
+## 【独立进程编辑器 20261114（作者终裁：THX75 编辑器模式）】
+## 编辑器=完全独立的 Godot 进程（OS.create_process 启动），标题画面进程
+## **完全不受影响**——退出编辑器=关闭那个进程的窗口（零交集零空转）
+## 与 THX75 的"启动弹幕编辑器.bat"同一模式
 
-func _open_editor_os_window() -> void:
-	if _editor_win != null and is_instance_valid(_editor_win):
-		_editor_win.grab_focus() ## 已打开=聚焦
-		return
-	var t0 := Time.get_ticks_msec()
-	print("[编辑器] 独立窗口创建中…")
-	_editor_win = Window.new()
-	_editor_win.title = "弹幕编辑器 — THXGameKit"
-	_editor_win.size = Vector2i(1280, 800)
-	_editor_win.min_size = Vector2i(900, 600)
-	var ed: Control = Control.new()
-	ed.set_script(load("res://addons/thx_gamekit/editor/danmaku_editor.gd"))
-	## 【关键】编辑器 Control 必须设 FULL_RECT 才能填满 Window
-	ed.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	_editor_win.add_child(ed)
-	add_child(_editor_win)
-	_editor_win.show()
-	print("[编辑器] 独立窗口已显示 +%dms" % (Time.get_ticks_msec() - t0))
-	_editor_win.close_requested.connect(func():
-		_editor_win.queue_free()
-		_editor_win = null)
+func _launch_editor_process() -> void:
+	var godot_exe := OS.get_executable_path()
+	var project_dir := ProjectSettings.globalize_path("res://")
+	var args := PackedStringArray(["--path", project_dir, "res://scenes/danmaku_editor.tscn"])
+	var pid := OS.create_process(godot_exe, args)
+	if pid > 0:
+		print("[编辑器] 独立进程已启动 pid=%d" % pid)
+	else:
+		push_error("[编辑器] 独立进程启动失败")
+
+func _on_menu(id: String) -> void:
 
 func _on_menu(id: String) -> void:
 	_close_panel()
@@ -157,7 +146,7 @@ func _on_menu(id: String) -> void:
 		"playthxe":
 			_open_thxe_dialog()
 		"editor":
-			_open_editor_os_window() ## 【m47 rebase 事故恢复】editor 分支被冲突吞掉=点编辑器丝毫无反应
+			_launch_editor_process() ## 【m47 rebase 事故恢复】editor 分支被冲突吞掉=点编辑器丝毫无反应
 		"docs":
 			_open_docs()
 		"options":
