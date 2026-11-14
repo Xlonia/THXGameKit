@@ -31,6 +31,11 @@ const VERSION_TEXT := "THXGameKit 内核 v0.1.0（随 TH75 v0.0.9 开发）｜MI
 var _panel: PanelContainer = null ## 当前弹出面板（同类互斥）
 
 func _ready() -> void:
+	## 【卡死取证哨兵 20261114（作者令：多找原因）】挂 root 常驻——空转段
+	## 自动落盘 csv（user://diag_sentinel_*.csv：fps/draw/objects/nodes/场景名/窗口模式）
+	var diag := Node.new()
+	diag.set_script(load("res://Tests/diag_sentinel.gd"))
+	get_tree().root.add_child.call_deferred(diag)
 	_build_bg()
 	## 标题
 	var title := Label.new()
