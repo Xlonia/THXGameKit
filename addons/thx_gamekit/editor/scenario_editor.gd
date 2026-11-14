@@ -185,6 +185,7 @@ func _build_kernel_page() -> Control:
 		["special_hitbox", "特殊判定盒（黑白位图判定）", "check"],
 		["hitbox_edit", "判定盒像素编辑可用", "check"],
 		["bullet_clear", "消弹域", "check"],
+		["nonhuman_res_ban", "非人类玩家资源获取禁止（AI 不获取任何资源）", "check"],
 	]:
 		box.add_child(_cfg_row(spec[0], spec[1], spec[2]))
 	var note := Label.new()
