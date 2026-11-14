@@ -328,6 +328,15 @@ func _ready() -> void:
 	_refresh_list()
 	if not events.is_empty():
 		_select(0)
+	## 【独立进程启动参数 20261114】标题"继续"=独立编辑器进程+工程路径随 -- 传递：
+	## 命令行带 .thxp/.thx/.thxe 时启动即自动载入（等价"打开"菜单，含工程路径记忆）
+	for uarg in OS.get_cmdline_user_args():
+		if uarg.get_extension() in ["thxp", "thx", "thxe"] and FileAccess.file_exists(uarg):
+			_load_package(uarg)
+			if uarg.ends_with(".thxp"):
+				_project_path = uarg
+			_recent_write(uarg)
+			break
 
 ## =============================================================
 ## UI 构建：顶栏 / 左侧主页面签+素材栏 / 主区 / 底栏

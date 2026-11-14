@@ -109,9 +109,8 @@ func _on_continue() -> void:
 	if last == "" or not FileAccess.file_exists(last):
 		_open_panel_msg("继续", "没有上次工程记录（先在编辑器里打开/保存一个 .thxp）")
 		return
-	THXKit.load_thx(last)
 	_recent_write(last)
-	_open_editor_os_window()
+	_launch_editor_process(last) ## 【独立进程 20261114】工程在编辑器进程内载入（路径随 -- 传给新进程）；标题进程不再 load_thx
 
 func _open_panel_msg(title: String, msg: String) -> void:
 	var p := _open_panel(title)
@@ -126,10 +125,13 @@ func _open_panel_msg(title: String, msg: String) -> void:
 ## **完全不受影响**——退出编辑器=关闭那个进程的窗口（零交集零空转）
 ## 与 THX75 的"启动弹幕编辑器.bat"同一模式
 
-func _launch_editor_process() -> void:
+func _launch_editor_process(open_path := "") -> void:
 	var godot_exe := OS.get_executable_path()
 	var project_dir := ProjectSettings.globalize_path("res://")
 	var args := PackedStringArray(["--path", project_dir, "res://scenes/danmaku_editor.tscn"])
+	if open_path != "":
+		args.append("--") ## 【继续按钮 20261114】-- 之后=用户参数：编辑器 _ready 解析并自动载入该工程
+		args.append(open_path)
 	var pid := OS.create_process(godot_exe, args)
 	if pid > 0:
 		print("[编辑器] 独立进程已启动 pid=%d" % pid)
