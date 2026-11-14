@@ -1952,7 +1952,16 @@ func _on_preview() -> void:
 	## 【0.0.9·预览（作者 20261110 终裁=0.0.7-legacy/0.0.8 行为）】goto_scene
 	## 替换**主窗口**为试炼场（编辑器子窗口=真 OS 窗口保持；gui_embed_subwindows
 	## 已复位到 _ready）；退出试炼场=Esc 面板按钮回本场景（编辑器 _ready 重载工作集）
-	GameGlobals.goto_scene("res://scenes/trial_ground.tscn")
+	## 【独立 OS 窗口试炼场 20261114】不切场景——试炼场=新 OS 窗口
+	var tw := Window.new()
+	tw.title = "试炼场 — THXGameKit"
+	tw.size = Vector2i(560, 560)
+	var tg := Node2D.new()
+	tg.set_script(load("res://addons/thx_gamekit/editor/trial_ground.gd"))
+	tw.add_child(tg)
+	add_child(tw)
+	tw.show()
+	tw.close_requested.connect(func(): tw.queue_free())
 
 ## =============================================================
 ## 运算/参数引入工具浮窗（作者图示重做 2026-10-04）：

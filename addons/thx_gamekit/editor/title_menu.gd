@@ -111,7 +111,7 @@ func _on_continue() -> void:
 		return
 	THXKit.load_thx(last)
 	_recent_write(last)
-	GameGlobals.goto_scene("res://scenes/danmaku_editor.tscn")
+	_open_editor_os_window()
 
 func _open_panel_msg(title: String, msg: String) -> void:
 	var p := _open_panel(title)
@@ -121,6 +121,34 @@ func _open_panel_msg(title: String, msg: String) -> void:
 	l.custom_minimum_size = Vector2(400, 0)
 	p.add_child(l)
 
+## 【独立 OS 窗口编辑器 20261114（作者终裁方案）】编辑器=独立 OS 窗口
+## 弹出（embed_subwindows=false 使其为真 OS 窗口），标题画面常驻主窗
+## **不切场景**——编辑器退出=关窗口=零 change_scene=零空转
+## 区别于之前失败尝试：本次 Control 明确设置 FULL_RECT anchors（填满 Window）
+var _editor_win: Window = null
+
+func _open_editor_os_window() -> void:
+	if _editor_win != null and is_instance_valid(_editor_win):
+		_editor_win.grab_focus() ## 已打开=聚焦
+		return
+	var t0 := Time.get_ticks_msec()
+	print("[编辑器] 独立窗口创建中…")
+	_editor_win = Window.new()
+	_editor_win.title = "弹幕编辑器 — THXGameKit"
+	_editor_win.size = Vector2i(1280, 800)
+	_editor_win.min_size = Vector2i(900, 600)
+	var ed: Control = Control.new()
+	ed.set_script(load("res://addons/thx_gamekit/editor/danmaku_editor.gd"))
+	## 【关键】编辑器 Control 必须设 FULL_RECT 才能填满 Window
+	ed.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_editor_win.add_child(ed)
+	add_child(_editor_win)
+	_editor_win.show()
+	print("[编辑器] 独立窗口已显示 +%dms" % (Time.get_ticks_msec() - t0))
+	_editor_win.close_requested.connect(func():
+		_editor_win.queue_free()
+		_editor_win = null)
+
 func _on_menu(id: String) -> void:
 	_close_panel()
 	match id:
@@ -129,7 +157,7 @@ func _on_menu(id: String) -> void:
 		"playthxe":
 			_open_thxe_dialog()
 		"editor":
-			GameGlobals.goto_scene("res://scenes/danmaku_editor.tscn") ## 【m47 rebase 事故恢复】editor 分支被冲突吞掉=点编辑器丝毫无反应
+			_open_editor_os_window() ## 【m47 rebase 事故恢复】editor 分支被冲突吞掉=点编辑器丝毫无反应
 		"docs":
 			_open_docs()
 		"options":

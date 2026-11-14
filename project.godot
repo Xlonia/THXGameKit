@@ -23,6 +23,7 @@ GameGlobals="*res://addons/thx_gamekit/editor/game_globals_compat.gd"
 
 [display]
 
+display/window/subwindows/embed_subwindows=false
 display/window/vsync/vsync_mode=0
 
 [editor_plugins]
