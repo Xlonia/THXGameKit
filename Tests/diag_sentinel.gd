@@ -11,6 +11,11 @@ var _path := ""
 func _ready() -> void:
 	var t := Time.get_datetime_string_from_system().replace(":", "").replace("-", "")
 	_path = "user://diag_sentinel_%s.csv" % t
+
+func _notification(what: int) -> void:
+	## 【退出落盘 20261114】进程 quit/场景切换时不丢数据
+	if what == NOTIFICATION_EXIT_TREE and not _rows.is_empty():
+		_flush("退出落盘（帧 %d）" % _frames)
 func _process(_d: float) -> void:
 	_frames += 1
 	var ft: float = 1.0 / maxf(1.0, float(Engine.get_frames_per_second()))
@@ -23,14 +28,16 @@ func _process(_d: float) -> void:
 	var csname: String = cs.name if cs != null else "null"
 	var sd := DisplayServer.window_get_mode()
 	_rows.append([_frames, fps, "%.4f" % ft, dc, objs, n, orph, csname, sd])
-	## 空转检测：fps>200 连续 30 帧=空转段开始
-	if fps > 200:
+	## 【检测条件修正 20261114（作者反馈哨兵未触发）】max_fps=60 后空转段 fps
+	## 也被压到 60——fps>200 条件永远不触发。改判据=**渲染/树异常**：
+	## ①有场景但零绘制（draw=0 持续 30 帧=渲染停摆）②树空壳（nodes<20）
+	if (dc == 0 and csname != "null") or n < 20:
 		if _spin_start < 0:
 			_spin_start = _frames
 		_spin_frames += 1
 	else:
 		if _spin_frames >= 30:
-			_flush("空转段 %d 帧（起始帧 %d）" % [_spin_frames, _spin_start])
+			_flush("异常段 %d 帧（起始帧 %d）" % [_spin_frames, _spin_start])
 		_spin_start = -1
 		_spin_frames = 0
 	if _frames % 600 == 0:
