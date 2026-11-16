@@ -2736,6 +2736,104 @@ func _build_chara_page() -> Control:
 	return box
 
 ## =============================================================
+## 【m75 伪节点图元件】op→默认参数（添加流程=识别名称自动填写文本框）
+const FLOW_OPS := {
+	"svgresign": {"arg": "", "params": "序号=0"},
+	"clean": {"arg": "", "params": "inspellrange"},
+	"reflex": {"arg": "", "params": "sel:shape=circle,r=120"},
+	"inverse": {"arg": "", "params": "ev:demo_aimed"},
+	"inversep": {"arg": "", "params": "ev:demo_aimed"},
+	"revolt": {"arg": "", "params": "sel:shape=circle,r=120"},
+	"inheritdamage": {"arg": "", "params": "ev:demo_aimed"},
+}
+
+## 伪节点图区块：步骤节点列表（每步=键名/名称/参数/排序/删除/复制）
+func _build_steps_editor(tl: TimelineData, title: String, field: String) -> Control:
+	var box := VBoxContainer.new()
+	box.add_theme_constant_override("separation", 4)
+	var head := HBoxContainer.new()
+	head.add_theme_constant_override("separation", 8)
+	box.add_child(head)
+	var lt := Label.new()
+	lt.text = title
+	lt.add_theme_font_size_override("font_size", 14)
+	head.add_child(lt)
+	var add_pick := OptionButton.new()
+	for op in FLOW_OPS:
+		add_pick.add_item(op)
+	add_pick.select(0)
+	head.add_child(add_pick)
+	var add_b := Button.new()
+	add_b.text = "添加流程"
+	add_b.focus_mode = Control.FOCUS_NONE
+	add_b.pressed.connect(func():
+		var op := add_pick.get_item_text(add_pick.selected)
+		var d: Dictionary = {"op": op, "arg": str(FLOW_OPS[op]["arg"]), "params": str(FLOW_OPS[op]["params"])}
+		tl.get(field).append(d)
+		_refresh_tl_detail())
+	head.add_child(add_b)
+	var list_box := VBoxContainer.new()
+	box.add_child(list_box)
+	var steps: Array = tl.get(field)
+	for i in steps.size():
+		var st: Dictionary = steps[i]
+		var row := HBoxContainer.new()
+		row.add_theme_constant_override("separation", 6)
+		list_box.add_child(row)
+		var kl := Label.new()
+		kl.text = String(st.get("op", "?"))
+		kl.custom_minimum_size = Vector2(110, 0)
+		row.add_child(kl)
+		var arg_e := LineEdit.new()
+		arg_e.text = String(st.get("arg", ""))
+		arg_e.custom_minimum_size = Vector2(90, 0)
+		arg_e.placeholder_text = "名称/图形"
+		arg_e.text_changed.connect(func(t: String): st["arg"] = t)
+		row.add_child(arg_e)
+		var pm_e := LineEdit.new()
+		pm_e.text = String(st.get("params", ""))
+		pm_e.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		pm_e.placeholder_text = "参数（sel:shape=circle,r=120 / ev:事件名 / 序号=0）"
+		pm_e.text_changed.connect(func(t: String): st["params"] = t)
+		row.add_child(pm_e)
+		var up_b := Button.new()
+		up_b.text = "↑"
+		up_b.focus_mode = Control.FOCUS_NONE
+		up_b.pressed.connect(func():
+			var a: Array = tl.get(field)
+			if i > 0:
+				var tmp = a[i - 1]
+				a[i - 1] = a[i]
+				a[i] = tmp
+				_refresh_tl_detail())
+		row.add_child(up_b)
+		var dn_b := Button.new()
+		dn_b.text = "↓"
+		dn_b.focus_mode = Control.FOCUS_NONE
+		dn_b.pressed.connect(func():
+			var a: Array = tl.get(field)
+			if i < a.size() - 1:
+				var tmp = a[i + 1]
+				a[i + 1] = a[i]
+				a[i] = tmp
+				_refresh_tl_detail())
+		row.add_child(dn_b)
+		var del_b := Button.new()
+		del_b.text = "✕"
+		del_b.focus_mode = Control.FOCUS_NONE
+		del_b.pressed.connect(func():
+			tl.get(field).remove_at(i)
+			_refresh_tl_detail())
+		row.add_child(del_b)
+		var cp_b := Button.new()
+		cp_b.text = "⧉"
+		cp_b.focus_mode = Control.FOCUS_NONE
+		cp_b.pressed.connect(func():
+			tl.get(field).insert(i + 1, {"op": st.get("op", ""), "arg": st.get("arg", ""), "params": st.get("params", "")})
+			_refresh_tl_detail())
+		row.add_child(cp_b)
+	return box
+
 ## 时间轴编辑器（作者批复 2026-10-02）：每个 0.1秒 tick 安排一个或多个
 ## 弹幕事件；随 .thx 保存为 danmaku/<名>.gd（格式见 TimelineData）。
 ## 运行时释放（能力/符卡）属②期接线。
@@ -2827,6 +2925,10 @@ func _refresh_tl_detail() -> void:
 	fe_e.custom_minimum_size = Vector2(150, 0)
 	fe_e.text_changed.connect(func(t: String): tl.flow_every = t.strip_edges())
 	trig.add_child(fe_e)
+	## 【m75 伪节点图（作者 20261117）】触发器挂载的流程步骤列表——
+	## 四段元件=键名-名称-参数文本框-排序/删除/复制；添加=识别 op 自动填参
+	_tl_detail.add_child(_build_steps_editor(tl, "符卡启动流程（伪节点图）", "steps_start"))
+	_tl_detail.add_child(_build_steps_editor(tl, "每事件帧流程（伪节点图）", "steps_tick"))
 	var name_e := LineEdit.new()
 	name_e.text = tl.tl_name
 	name_e.custom_minimum_size = Vector2(160, 0)

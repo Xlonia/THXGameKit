@@ -22,6 +22,11 @@ var slot := "spell"          ## skill=能力 / spell=符卡
 ## （名称对应 morerule.gd 原生预设 / progess.gd 已有保存逻辑；空=不绑定）
 var flow_start := ""
 var flow_every := ""
+## 【m75 伪节点图（作者 20261117）】符卡触发器挂载的流程步骤列表
+## （每步 {op:键名, arg:名称/图形, params:参数文本框}——编辑器伪节点图
+## 增删/排序/复制；执行顺序=数组序）。svgresign/clean 为符卡专用 op。
+var steps_start: Array = []
+var steps_tick: Array = []
 var length_ticks := 60       ## 总帧数（每帧0.1秒；Flash 式帧条的长度）
 var ticks := {}              ## int(tick, 每0.1秒) -> PackedStringArray 事件名
 
@@ -51,6 +56,10 @@ func to_gd() -> String:
 		lines.append("## @flow_start: %s" % flow_start)
 	if flow_every != "":
 		lines.append("## @flow_every: %s" % flow_every)
+	if steps_start.size() > 0:
+		lines.append("## @steps_start: %s" % JSON.stringify(steps_start))
+	if steps_tick.size() > 0:
+		lines.append("## @steps_tick: %s" % JSON.stringify(steps_tick))
 	lines.append("## 每个 tick = 0.1秒；格式：## T <tick> => 事件名,事件名,…")
 	var keys := ticks.keys()
 	keys.sort()
@@ -73,6 +82,14 @@ static func parse_gd(text: String):
 			tl.flow_start = l.trim_prefix("## @flow_start:").strip_edges()
 		elif l.begins_with("## @flow_every:"):
 			tl.flow_every = l.trim_prefix("## @flow_every:").strip_edges()
+		elif l.begins_with("## @steps_start:"):
+			var ss: Variant = JSON.parse_string(l.trim_prefix("## @steps_start:"))
+			if ss is Array:
+				tl.steps_start = ss
+		elif l.begins_with("## @steps_tick:"):
+			var st: Variant = JSON.parse_string(l.trim_prefix("## @steps_tick:"))
+			if st is Array:
+				tl.steps_tick = st
 		elif l.begins_with("## @len:"):
 			tl.length_ticks = maxi(10, int(l.trim_prefix("## @len:").strip_edges()))
 		elif l.begins_with("## T "):
