@@ -2805,6 +2805,28 @@ func _refresh_tl_detail() -> void:
 	## 元数据行
 	var meta := HBoxContainer.new()
 	_tl_detail.add_child(meta)
+	## 【m74 角色触发器（作者 20261116）】符卡启动/每事件帧 绑定角色流程——
+	## 名称对应 morerule.gd 原生预设 / progess.gd 已有保存逻辑；空=不绑定。
+	## 战场侧：启动=符卡释放时一次；每事件帧=0.1s/事件帧随符卡 tick 执行
+	var trig := HBoxContainer.new()
+	trig.add_theme_constant_override("separation", 8)
+	_tl_detail.add_child(trig)
+	var ls := Label.new()
+	ls.text = "符卡启动流程"
+	trig.add_child(ls)
+	var fs_e := LineEdit.new()
+	fs_e.text = tl.flow_start
+	fs_e.custom_minimum_size = Vector2(150, 0)
+	fs_e.text_changed.connect(func(t: String): tl.flow_start = t.strip_edges())
+	trig.add_child(fs_e)
+	var le2 := Label.new()
+	le2.text = "每事件帧流程"
+	trig.add_child(le2)
+	var fe_e := LineEdit.new()
+	fe_e.text = tl.flow_every
+	fe_e.custom_minimum_size = Vector2(150, 0)
+	fe_e.text_changed.connect(func(t: String): tl.flow_every = t.strip_edges())
+	trig.add_child(fe_e)
 	var name_e := LineEdit.new()
 	name_e.text = tl.tl_name
 	name_e.custom_minimum_size = Vector2(160, 0)

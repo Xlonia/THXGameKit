@@ -70,6 +70,21 @@ static func reflex(list: Array) -> int:
 		n += 1
 	return n
 
+## 伤害继承（scheme inheritdamage）：选中弹覆盖为指定事件的出生伤害
+## （hit_damage 优先读 damage_override；池化重置已入清单）
+static func inherit_damage(list: Array, ref_ev: DanmakuEventData) -> int:
+	if ref_ev == null:
+		return 0
+	var dmg := int(ref_ev.eval_spawn_params({}).get("dmg", 0))
+	var n := 0
+	for b in list:
+		var bl: Bullet = b
+		if not bl.alive:
+			continue
+		bl.damage_override = dmg
+		n += 1
+	return n
+
 ## 实体替换：ev 换新（表现/判定/伤害随之）——轨迹保持（表已烘焙为旧路）
 static func inverse(list: Array, new_ev: DanmakuEventData) -> int:
 	if new_ev == null:

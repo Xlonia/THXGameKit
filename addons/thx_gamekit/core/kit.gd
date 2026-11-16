@@ -128,9 +128,9 @@ func _ready() -> void:
 	_load_official()
 	load_char_flows() ## 【0.0.9·角色流程】本体侧 morerule.gd（部署侧 progess.gd 由宿主注入）
 	_load_official_timelines() ## 运行时限行（编辑器态环境门已 return——parse_gd 不被扫描）
-## 【0.0.9·角色流程（scheme 新二 975）】流程名 → CharFlowData 注册表。
-## 本体侧=data/morerule.gd；部署侧（th75 等）=游戏根 progess.gd 由宿主
-## 载入时并入 char_flows（覆盖同名——部署优先）。
+## 【0.0.9·角色流程（scheme 新二 975；语义作者 20261117）】流程名 → CharFlowData
+## 注册表。data/morerule.gd=**原生预设**（内核自带）；progess.gd=**已有保存的
+## 逻辑**（部署项目里编辑器 tab 修补的产物，宿主载入并入、覆盖同名预设）。
 var char_flows: Dictionary = {}
 
 func load_char_flows() -> void:

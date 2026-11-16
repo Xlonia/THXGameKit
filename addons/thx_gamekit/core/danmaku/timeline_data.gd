@@ -18,6 +18,10 @@ extends RefCounted
 
 var tl_name := "demotimeline1"
 var slot := "spell"          ## skill=能力 / spell=符卡
+## 【m74 角色触发器（作者 20261116）】符卡启动/每事件帧 绑定角色流程
+## （名称对应 morerule.gd 原生预设 / progess.gd 已有保存逻辑；空=不绑定）
+var flow_start := ""
+var flow_every := ""
 var length_ticks := 60       ## 总帧数（每帧0.1秒；Flash 式帧条的长度）
 var ticks := {}              ## int(tick, 每0.1秒) -> PackedStringArray 事件名
 
@@ -43,6 +47,10 @@ func to_gd() -> String:
 	lines.append("## @name: %s" % tl_name)
 	lines.append("## @slot: %s" % slot)
 	lines.append("## @len: %d" % length_ticks)
+	if flow_start != "":
+		lines.append("## @flow_start: %s" % flow_start)
+	if flow_every != "":
+		lines.append("## @flow_every: %s" % flow_every)
 	lines.append("## 每个 tick = 0.1秒；格式：## T <tick> => 事件名,事件名,…")
 	var keys := ticks.keys()
 	keys.sort()
@@ -61,6 +69,10 @@ static func parse_gd(text: String):
 			pass ## 【20261020】owner 废除——旧文件该行忽略（时间轴归属走角色列）
 		elif l.begins_with("## @slot:"):
 			tl.slot = l.trim_prefix("## @slot:").strip_edges()
+		elif l.begins_with("## @flow_start:"):
+			tl.flow_start = l.trim_prefix("## @flow_start:").strip_edges()
+		elif l.begins_with("## @flow_every:"):
+			tl.flow_every = l.trim_prefix("## @flow_every:").strip_edges()
 		elif l.begins_with("## @len:"):
 			tl.length_ticks = maxi(10, int(l.trim_prefix("## @len:").strip_edges()))
 		elif l.begins_with("## T "):

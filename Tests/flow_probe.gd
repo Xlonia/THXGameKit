@@ -85,6 +85,13 @@ func _ready() -> void:
 		_fail("tex 未随新事件重解析")
 	if b1.pos != Vector2(220, 200):
 		_fail("inverse 不应移动弹（轨迹保持语义）")
+	## ——E inheritdamage——
+	var dmg_expect: int = int(ev2.eval_spawn_params({}).get("dmg", 0))
+	var ninh: int = BulletOps.inherit_damage([b1], ev2)
+	if ninh != 1:
+		_fail("inherit_damage 应作用于 1（得 %d）" % ninh)
+	elif b1.damage_override != dmg_expect or b1.hit_damage() != dmg_expect:
+		_fail("伤害覆盖未生效（override=%d 期望=%d）" % [b1.damage_override, dmg_expect])
 	## ——D parse/to_gd 往返——
 	var text := "## THX CHARFLOW v1\n## @name: probe_flow\n## @owner: *\n## F reflex | sel:shape=circle,r=120,t_max=60,max_n=64\n## F inverse | sel:shape=band_x,x0=-100,x1=100 | ev:demo_aimed | every:36\n"
 	var flows: Array = CharFlowData.parse_gd(text)

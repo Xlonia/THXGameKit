@@ -31,6 +31,7 @@ var t := 0.0
 ## 子代继承载体释放时刻的 t；rotate 延时副本=基时+步进延时。
 var t_event := 0.0
 var depth := 0
+var damage_override := -1 ## 【m74 inheritdamage】伤害继承覆盖（-1=用 ev 自身伤害）
 var alive := true
 var hidden_now := false
 ## 【谱系追踪 20261109】出生路径标签（trace_clear_probe 用）：fire=直发/
@@ -200,6 +201,7 @@ func setup(event: DanmakuEventData, spawn_origin: Vector2, bullet_side: int, src
 	## 重复/只发一个"的根因；池里恰好弹出旧载体则正常=偶发不故障）
 	repeat_enabled = true
 	frozen_ok = false
+	damage_override = -1 ## 【m74】继承覆盖入池化重置清单（条件赋值字段纪律）
 	## 【0.0.9·池毒根因③（作者假说证实：回收×setup 冲突）20261105】
 	## Functed 类是积分器：forward += speed·dt。尸体携带旧生前积分（满航程
 	## ≈300-400px），新副本出生即 pos=origin+dir·旧forward → 落点数百像素外
@@ -958,6 +960,8 @@ func _has_hard_lock_loss(_tp: Vector2, dist: float) -> bool:
 ## =============================================================
 ## 当前有效伤害（激光随预警阶段 -1；其余=出生时求值的个体伤害——式/命题 20261019）
 func hit_damage() -> int:
+	if damage_override >= 0:
+		return damage_override
 	if ev.tag == DanmakuEventData.TAG_LASER:
 		if t <= alarm_now:
 			return -1
