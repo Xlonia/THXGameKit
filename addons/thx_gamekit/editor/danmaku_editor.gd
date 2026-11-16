@@ -410,7 +410,7 @@ func _build_ui() -> void:
 	var pagerow := HBoxContainer.new()
 	left.add_child(pagerow)
 	var group := ButtonGroup.new()
-	for pg in [["danmaku", "弹幕"], ["chara", "角色"], ["privates", "杂兵"], ["timeline", "时间轴"], ["formation", "排布"]]:
+	for pg in [["danmaku", "弹幕"], ["chara", "角色"], ["privates", "杂兵"], ["timeline", "时间轴"], ["spell", "符卡"], ["formation", "排布"]]:
 		var b := Button.new()
 		b.text = pg[1]
 		b.toggle_mode = true
@@ -721,6 +721,8 @@ func _show_main_page(key: String) -> void:
 		_pages["privates"].add_child(_build_privates_page())
 	if key == "timeline" and _pages["timeline"].get_child_count() == 0:
 		_pages["timeline"].add_child(_build_timeline_page())
+	if key == "spell" and _pages["spell"].get_child_count() == 0:
+		_pages["spell"].add_child(_build_spell_page())
 
 ## —— 弹幕页（原主体：事件列表 + 标签页）——
 func _build_danmaku_page() -> HSplitContainer:
@@ -1807,6 +1809,8 @@ func _save_package(path: String, fmt: String) -> void:
 		payload["texture/%s.png" % tex_name] = GameGlobals.editor_textures[tex_name]
 	## 【层级收纳 20261114（作者裁定）】.thxs 被 .thxp/.thxe 收纳——当前场景
 	## 非空时写入 scenarios/<名>.thxs（纯文本随包）
+	## 【m77 符卡】spell.csv 随包（danmaku/spell.csv——scheme 概述）
+	payload["danmaku/spell.csv"] = SpellData.save_csv(GameGlobals.editor_spells).to_utf8_buffer()
 	if THXKit.scenario_name != "":
 		var scn_path := THXKit.SCENARIO_DIR.path_join(THXKit.scenario_name + ".thxs")
 		if FileAccess.file_exists(scn_path):
@@ -2748,7 +2752,7 @@ const FLOW_OPS := {
 }
 
 ## 伪节点图区块：步骤节点列表（每步=键名/名称/参数/排序/删除/复制）
-func _build_steps_editor(tl: TimelineData, title: String, field: String) -> Control:
+func _build_steps_editor(title: String, steps: Array) -> Control:
 	var box := VBoxContainer.new()
 	box.add_theme_constant_override("separation", 4)
 	var head := HBoxContainer.new()
@@ -2769,12 +2773,11 @@ func _build_steps_editor(tl: TimelineData, title: String, field: String) -> Cont
 	add_b.pressed.connect(func():
 		var op := add_pick.get_item_text(add_pick.selected)
 		var d: Dictionary = {"op": op, "arg": str(FLOW_OPS[op]["arg"]), "params": str(FLOW_OPS[op]["params"])}
-		tl.get(field).append(d)
+		steps.append(d)
 		_refresh_tl_detail())
 	head.add_child(add_b)
 	var list_box := VBoxContainer.new()
 	box.add_child(list_box)
-	var steps: Array = tl.get(field)
 	for i in steps.size():
 		var st: Dictionary = steps[i]
 		var row := HBoxContainer.new()
@@ -2800,36 +2803,34 @@ func _build_steps_editor(tl: TimelineData, title: String, field: String) -> Cont
 		up_b.text = "↑"
 		up_b.focus_mode = Control.FOCUS_NONE
 		up_b.pressed.connect(func():
-			var a: Array = tl.get(field)
 			if i > 0:
-				var tmp = a[i - 1]
-				a[i - 1] = a[i]
-				a[i] = tmp
+				var tmp = steps[i - 1]
+				steps[i - 1] = steps[i]
+				steps[i] = tmp
 				_refresh_tl_detail())
 		row.add_child(up_b)
 		var dn_b := Button.new()
 		dn_b.text = "↓"
 		dn_b.focus_mode = Control.FOCUS_NONE
 		dn_b.pressed.connect(func():
-			var a: Array = tl.get(field)
-			if i < a.size() - 1:
-				var tmp = a[i + 1]
-				a[i + 1] = a[i]
-				a[i] = tmp
+			if i < steps.size() - 1:
+				var tmp = steps[i + 1]
+				steps[i + 1] = steps[i]
+				steps[i] = tmp
 				_refresh_tl_detail())
 		row.add_child(dn_b)
 		var del_b := Button.new()
 		del_b.text = "✕"
 		del_b.focus_mode = Control.FOCUS_NONE
 		del_b.pressed.connect(func():
-			tl.get(field).remove_at(i)
+			steps.remove_at(i)
 			_refresh_tl_detail())
 		row.add_child(del_b)
 		var cp_b := Button.new()
 		cp_b.text = "⧉"
 		cp_b.focus_mode = Control.FOCUS_NONE
 		cp_b.pressed.connect(func():
-			tl.get(field).insert(i + 1, {"op": st.get("op", ""), "arg": st.get("arg", ""), "params": st.get("params", "")})
+			steps.insert(i + 1, {"op": st.get("op", ""), "arg": st.get("arg", ""), "params": st.get("params", "")})
 			_refresh_tl_detail())
 		row.add_child(cp_b)
 	return box
@@ -2841,6 +2842,87 @@ func _build_steps_editor(tl: TimelineData, title: String, field: String) -> Cont
 var _tl_list: ItemList
 var _tl_detail: VBoxContainer
 var _tl_selected := -1
+
+## —— 符卡页（m77：spell.csv 编辑——键名+三触发器伪节点图）——
+var _spell_list: ItemList
+var _spell_detail: VBoxContainer
+var _spell_sel := -1
+
+func _build_spell_page() -> Control:
+	var split := HSplitContainer.new()
+	split.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	var left := VBoxContainer.new()
+	left.custom_minimum_size = Vector2(240, 0)
+	split.add_child(left)
+	_spell_list = ItemList.new()
+	_spell_list.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	_spell_list.item_selected.connect(func(i): _spell_sel = i; _refresh_spell_detail())
+	left.add_child(_spell_list)
+	var btns := HBoxContainer.new()
+	left.add_child(btns)
+	for t in ["新建", "删除"]:
+		var b := Button.new()
+		b.text = t
+		b.pressed.connect(_on_spell_btn.bind(t))
+		btns.add_child(b)
+	_spell_detail = VBoxContainer.new()
+	_spell_detail.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	split.add_child(_spell_detail)
+	_refresh_spell_list()
+	return split
+
+func _refresh_spell_list() -> void:
+	if GameGlobals.editor_spells.is_empty():
+		var sp := SpellData.new()
+		sp.spell_name = "spell_1"
+		GameGlobals.editor_spells.append(sp)
+	_spell_list.clear()
+	for sp in GameGlobals.editor_spells:
+		_spell_list.add_item("%s [%d/%d/%d]" % [sp.spell_name,
+			sp.steps_start.size(), sp.steps_fin.size(), sp.steps_tick.size()])
+	if _spell_sel < 0 or _spell_sel >= GameGlobals.editor_spells.size():
+		_spell_sel = 0
+	_spell_list.select(_spell_sel)
+	_refresh_spell_detail()
+
+func _on_spell_btn(t: String) -> void:
+	match t:
+		"新建":
+			var sp := SpellData.new()
+			sp.spell_name = "spell_%d" % (GameGlobals.editor_spells.size() + 1)
+			GameGlobals.editor_spells.append(sp)
+			_spell_sel = GameGlobals.editor_spells.size() - 1
+			_refresh_spell_list()
+		"删除":
+			if _spell_sel >= 0:
+				GameGlobals.editor_spells.remove_at(_spell_sel)
+				_spell_sel = -1
+				_refresh_spell_list()
+
+func _refresh_spell_detail() -> void:
+	for c in _spell_detail.get_children():
+		c.queue_free()
+	if _spell_sel < 0 or _spell_sel >= GameGlobals.editor_spells.size():
+		return
+	var sp: SpellData = GameGlobals.editor_spells[_spell_sel]
+	var meta := HBoxContainer.new()
+	_spell_detail.add_child(meta)
+	var kl := Label.new()
+	kl.text = "本地化键名"
+	meta.add_child(kl)
+	var nm := LineEdit.new()
+	nm.text = sp.spell_name
+	nm.custom_minimum_size = Vector2(220, 0)
+	nm.text_changed.connect(func(t: String): sp.spell_name = t.strip_edges())
+	meta.add_child(nm)
+	var tip := Label.new()
+	tip.text = "触发器挂载流程（伪节点图）：spellstart=释放时刻 / spellfin=符卡结束 / spelltick=每事件帧。\n添加流程=识别 op 自动填参；弹幕表演走片段（playclips/loopclips）。随 spell.csv 保存。"
+	tip.add_theme_font_size_override("font_size", 12)
+	tip.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_spell_detail.add_child(tip)
+	_spell_detail.add_child(_build_steps_editor("spellstart（符卡启动）", sp.steps_start))
+	_spell_detail.add_child(_build_steps_editor("spellfin（符卡结束）", sp.steps_fin))
+	_spell_detail.add_child(_build_steps_editor("spelltick（每事件帧）", sp.steps_tick))
 
 func _build_timeline_page() -> Control:
 	var split := HSplitContainer.new()
@@ -2903,32 +2985,8 @@ func _refresh_tl_detail() -> void:
 	## 元数据行
 	var meta := HBoxContainer.new()
 	_tl_detail.add_child(meta)
-	## 【m74 角色触发器（作者 20261116）】符卡启动/每事件帧 绑定角色流程——
-	## 名称对应 morerule.gd 原生预设 / progess.gd 已有保存逻辑；空=不绑定。
-	## 战场侧：启动=符卡释放时一次；每事件帧=0.1s/事件帧随符卡 tick 执行
-	var trig := HBoxContainer.new()
-	trig.add_theme_constant_override("separation", 8)
-	_tl_detail.add_child(trig)
-	var ls := Label.new()
-	ls.text = "符卡启动流程"
-	trig.add_child(ls)
-	var fs_e := LineEdit.new()
-	fs_e.text = tl.flow_start
-	fs_e.custom_minimum_size = Vector2(150, 0)
-	fs_e.text_changed.connect(func(t: String): tl.flow_start = t.strip_edges())
-	trig.add_child(fs_e)
-	var le2 := Label.new()
-	le2.text = "每事件帧流程"
-	trig.add_child(le2)
-	var fe_e := LineEdit.new()
-	fe_e.text = tl.flow_every
-	fe_e.custom_minimum_size = Vector2(150, 0)
-	fe_e.text_changed.connect(func(t: String): tl.flow_every = t.strip_edges())
-	trig.add_child(fe_e)
-	## 【m75 伪节点图（作者 20261117）】触发器挂载的流程步骤列表——
-	## 四段元件=键名-名称-参数文本框-排序/删除/复制；添加=识别 op 自动填参
-	_tl_detail.add_child(_build_steps_editor(tl, "符卡启动流程（伪节点图）", "steps_start"))
-	_tl_detail.add_child(_build_steps_editor(tl, "每事件帧流程（伪节点图）", "steps_tick"))
+	## 【m77 作者 20261117】符卡触发器/伪节点图迁至「符卡」页——时间轴回归
+	## 纯弹幕表演编辑（弹幕表演的符卡承载已转移至片段/流程体系）
 	var name_e := LineEdit.new()
 	name_e.text = tl.tl_name
 	name_e.custom_minimum_size = Vector2(160, 0)

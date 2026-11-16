@@ -17,6 +17,9 @@ var editor_events: Array:
 var editor_timelines: Array:
 	get: return THXKit.editor_timelines
 	set(v): THXKit.editor_timelines = v
+var editor_spells: Array:
+	get: return THXKit.editor_spells
+	set(v): THXKit.editor_spells = v
 var official_events: Dictionary:
 	get: return THXKit.official_events
 var mod_events: Dictionary:

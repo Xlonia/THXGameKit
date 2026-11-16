@@ -102,6 +102,7 @@ var loaded_mods: Array[String] = []  ## 已加载 .thx 文件名（UI 展示用�
 ## —— 时间轴注册表 ——
 var editor_events: Array = []        ## 编辑器工作集（弹幕事件；编辑器必备件共享）
 var editor_timelines: Array = []     ## 编辑器工作集（时间轴）
+var editor_spells: Array = []        ## 编辑器工作集（符卡——SpellData 列表）
 var official_timelines: Dictionary = {} ## 官方时间轴注册表（名→TimelineData）
 var mod_timelines: Dictionary = {}   ## mod 时间轴注册表（名→TimelineData）
 
@@ -127,6 +128,7 @@ func _ready() -> void:
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(PROJECTS_DIR))
 	_load_official()
 	load_char_flows() ## 【0.0.9·角色流程】本体侧 morerule.gd（部署侧 progess.gd 由宿主注入）
+	load_spells() ## 【0.0.9·符卡】本体侧 spell.csv（部署侧由宿主并入）
 	_load_official_timelines() ## 运行时限行（编辑器态环境门已 return——parse_gd 不被扫描）
 ## 【0.0.9·角色流程（scheme 新二 975；语义作者 20261117）】流程名 → CharFlowData
 ## 注册表。data/morerule.gd=**原生预设**（内核自带）；progess.gd=**已有保存的
@@ -141,6 +143,18 @@ func load_char_flows() -> void:
 
 func resolve_flow(flow_name: String) -> CharFlowData:
 	return char_flows.get(flow_name)
+
+## 【0.0.9·符卡数据（scheme 概述）】spell.csv=所有符卡（四列：键名+三触发器）
+var spell_cards: Dictionary = {} ## 键名 → SpellData
+
+func load_spells() -> void:
+	var p := kpath("res://addons/thx_gamekit/data/spell.csv")
+	if FileAccess.file_exists(p):
+		for sp in SpellData.parse_csv(FileAccess.get_file_as_string(p)):
+			spell_cards[sp.spell_name] = sp
+
+func resolve_spell(spell_name: String) -> SpellData:
+	return spell_cards.get(spell_name)
 
 func _load_deployed_cfg() -> void:
 	## 【m69】部署项目内核配置回读（res://gameAssetBase/thx_kernel_cfg.json）：
