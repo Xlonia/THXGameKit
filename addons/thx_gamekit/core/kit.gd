@@ -120,6 +120,28 @@ func _ready() -> void:
 	_load_deployed_cfg()
 	if Engine.is_editor_hint():
 		return
+	## 【m74 修复】下列装载行自 m69 起被误并进 _load_deployed_cfg 函数体
+	## （python 拼接锚点选在 _ready 内部行）——GameKit 纯运行时静默断电
+	## （officials=0）；th75 宿主走自家 GameGlobals 幸免、编辑器走自身装载
+	## 幸免，唯 kit_smoke 漏跑（m69 起未入门禁——本事故教训）
+	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(PROJECTS_DIR))
+	_load_official()
+	load_char_flows() ## 【0.0.9·角色流程】本体侧 morerule.gd（部署侧 progess.gd 由宿主注入）
+	_load_official_timelines() ## 运行时限行（编辑器态环境门已 return——parse_gd 不被扫描）
+## 【0.0.9·角色流程（scheme 新二 975）】流程名 → CharFlowData 注册表。
+## 本体侧=data/morerule.gd；部署侧（th75 等）=游戏根 progess.gd 由宿主
+## 载入时并入 char_flows（覆盖同名——部署优先）。
+var char_flows: Dictionary = {}
+
+func load_char_flows() -> void:
+	var p := kpath("res://addons/thx_gamekit/data/morerule.gd")
+	if FileAccess.file_exists(p):
+		for f in CharFlowData.parse_gd(FileAccess.get_file_as_string(p)):
+			char_flows[f.flow_name] = f
+
+func resolve_flow(flow_name: String) -> CharFlowData:
+	return char_flows.get(flow_name)
+
 func _load_deployed_cfg() -> void:
 	## 【m69】部署项目内核配置回读（res://gameAssetBase/thx_kernel_cfg.json）：
 	## 编辑器"导出为官方数据"时随官方表写入 scenario_cfg——文件键优先合并
@@ -134,10 +156,6 @@ func _load_deployed_cfg() -> void:
 	if data is Dictionary:
 		for k in data:
 			scenario_cfg[k] = data[k]
-
-	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(PROJECTS_DIR))
-	_load_official()
-	_load_official_timelines() ## 运行时限行（编辑器态环境门已 return——parse_gd 不被扫描）
 
 ## 官方时间轴装载：data/timelines/*.gd（TimelineData.parse_gd 文本格式）
 func _load_official_timelines() -> void:
