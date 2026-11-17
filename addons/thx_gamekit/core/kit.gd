@@ -105,6 +105,9 @@ var editor_timelines: Array = []     ## 编辑器工作集（时间轴）
 var editor_spells: Array = []        ## 编辑器工作集（符卡——SpellData 列表）
 var official_timelines: Dictionary = {} ## 官方时间轴注册表（名→TimelineData）
 var mod_timelines: Dictionary = {}   ## mod 时间轴注册表（名→TimelineData）
+## 【m85 片段（作者裁定 20261117）】火力点配置从弹幕本身改为单弹幕片段——
+## 注册表 + 槽位解析（get_slot_entries：clip 名→事件带 tick；旧直引事件名兼容）
+var clips: Dictionary = {}           ## clip_name -> ClipData
 
 func _ready() -> void:
 	## 【@tool 化 20261114（作者裁定）】内核在编辑器环境也初始化——但**环境门**：
@@ -129,6 +132,7 @@ func _ready() -> void:
 	_load_official()
 	load_char_flows() ## 【0.0.9·角色流程】本体侧 morerule.gd（部署侧 progess.gd 由宿主注入）
 	load_spells() ## 【0.0.9·符卡】本体侧 spell.csv（部署侧由宿主并入）
+	load_clips() ## 【m85 片段】本体侧 danmaku_clip.csv（部署侧由宿主并入——同 spell 约定）
 	_load_official_timelines() ## 运行时限行（编辑器态环境门已 return——parse_gd 不被扫描）
 ## 【0.0.9·角色流程（scheme 新二 975；语义作者 20261117）】流程名 → CharFlowData
 ## 注册表。data/morerule.gd=**原生预设**（内核自带）；progess.gd=**已有保存的
@@ -155,6 +159,17 @@ func load_spells() -> void:
 
 func resolve_spell(spell_name: String) -> SpellData:
 	return spell_cards.get(spell_name)
+
+## 【m85 片段装载】danmaku_clip.csv（三列：clip_name,length,ticks JSON）——
+## 火力点配置迁移目标；部署侧由宿主把 gameAssetBase 的同名文件并入（同 spell 约定）
+func load_clips() -> void:
+	var p := kpath("res://addons/thx_gamekit/data/danmaku_clip.csv")
+	if FileAccess.file_exists(p):
+		for cd in ClipData.parse_csv(FileAccess.get_file_as_string(p)):
+			clips[cd.clip_name] = cd
+
+func resolve_clip(clip_name: String) -> ClipData:
+	return clips.get(clip_name)
 
 func _load_deployed_cfg() -> void:
 	## 【m69】部署项目内核配置回读（res://gameAssetBase/thx_kernel_cfg.json）：
@@ -344,12 +359,48 @@ func get_slot_events(owner_name: String, slot: String, row: Dictionary = {}) -> 
 	if col == "":
 		return out
 	for nm in String(row.get(col, "")).split(";", false):
-		var ev_name: String = nm.strip_edges()
-		if ev_name == "":
+		var ref: String = nm.strip_edges()
+		if ref == "":
 			continue
-		var ev := resolve_event_by_name(ev_name)
+		## 【m85 片段化】槽位引用可为片段名（展开其事件，升 tick 平铺）
+		## 或旧直引事件名（向后兼容）
+		var cd := clips.get(ref)
+		if cd != null:
+			for ent in (cd as ClipData).flat_entries():
+				var ev_c := resolve_event_by_name(ent["name"])
+				if ev_c != null:
+					out.append(ev_c)
+			continue
+		var ev := resolve_event_by_name(ref)
 		if ev != null:
 			out.append(ev)
+	return out
+
+## 【m85 片段感知槽位解析】条目 {tick:int, ev:DanmakuEventData}——火力点用
+## （tick=0 即发；tick>0=片段内延时 6 帧/tick；gate 在片段释放时刻统一过）
+func get_slot_entries(owner_name: String, slot: String, row: Dictionary = {}) -> Array:
+	var out: Array = []
+	if row.is_empty():
+		row = CharaDB.get_by_name(owner_name)
+	if row.is_empty():
+		return out
+	var col: String = {"main": "main_evs", "sub": "sub_evs", "rest": "rest_evs"}.get(slot, "")
+	if col == "":
+		return out
+	for nm in String(row.get(col, "")).split(";", false):
+		var ref: String = nm.strip_edges()
+		if ref == "":
+			continue
+		var cd := clips.get(ref)
+		if cd != null:
+			for ent in (cd as ClipData).flat_entries():
+				var ev_c := resolve_event_by_name(ent["name"])
+				if ev_c != null:
+					out.append({"tick": int(ent["tick"]), "ev": ev_c})
+			continue
+		var ev := resolve_event_by_name(ref)
+		if ev != null:
+			out.append({"tick": 0, "ev": ev})
 	return out
 
 ## 按事件名解析（编辑器工作集 → Mod → 官方）
