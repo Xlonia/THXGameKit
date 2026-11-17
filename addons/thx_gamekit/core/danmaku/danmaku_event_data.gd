@@ -96,6 +96,8 @@ const CSV_HEADER: PackedStringArray = [
 	## 【m84 方案C（作者裁定 20261117）】超阈值打压豁免——勾选后该弹幕
 	## 到达弹幕阈值时不参与"存活/重复减半"护栏（严重影响玩法的直白开关）
 	"suppress_exempt",
+	## 【m88 特殊弹设四钩（0.0.9 计划书：反弹/就近消弹/亡计/被弹）】
+	"nearclear", "death_evs", "spawn_conv",
 ]
 
 ## —— 元数据 ——
@@ -142,6 +144,17 @@ var range_s := ""
 ## 【m84 方案C（作者裁定 20261117：峰值打压+豁免）】suppress_exempt=真时
 ## 战场到达弹幕阈值也不对本事件做"存活/重复减半"（编辑器勾选框直读此列）
 var suppress_exempt := false
+## 【m88 特殊弹设四钩（0.0.9 计划书）】
+## nearclear=发射时就近消弹（整式半径 px，0=关——铃仙/月兔系"发射时消除
+##   本角色附近敌对/物理弹幕"）
+## death_evs=亡计弹设（分号分隔事件名——本弹死亡〔航程尽/出界销毁/被消弹〕
+##   时在原位释放；杂兵被击破诅咒/点向类被消除释放）
+## spawn_conv=反弹弹设（"事件名,半径"——发射时把附近敌对弹转化为该事件弹，
+##   转化位置=初始点；"化为自己的弹幕+应用一个运动公式"）
+var nearclear := 0
+var nearclear_s := ""
+var death_evs := ""
+var spawn_conv := ""
 var is_abs_coord := false
 var dmg := 1
 var dmg_s := ""
@@ -305,6 +318,7 @@ var ex_rrot_delay = null
 var ex_repeat_time = null
 var ex_repeat_freq = null
 var ex_range = null
+var ex_nearclear = null
 ## 【m84 方案C·初始化预备（作者 20261117："初始化宁愿多卡顿一点，换运行时的
 ## 轻松"）】超阈值打压档案——compile() 一次算好，战场出生路径零额外求值：
 ##   sup_class=高重复类（repeat_freq 常量>0 或带表达式）
@@ -369,6 +383,10 @@ func eval_repeat_params(ctx: Dictionary) -> Dictionary:
 		"time": maxi(0, int(floor(_e_or(ex_repeat_time, repeat_time, ctx)))),
 		"freq": maxi(0, int(floor(_e_or(ex_repeat_freq, repeat_freq, ctx)))),
 	}
+
+## 【m88 就近消弹】发射时消弹半径求值（0=关）
+func eval_nearclear(ctx: Dictionary) -> int:
+	return maxi(0, int(floor(_e_or(ex_nearclear, nearclear, ctx))))
 
 ## 出生时刻参数求值（dmg/规格/航程/偏移/预警——弹幕出现瞬间定值，与快照同语义）
 func eval_spawn_params(ctx: Dictionary) -> Dictionary:
@@ -661,6 +679,11 @@ func from_csv_row(cells: PackedStringArray) -> Error:
 	hitbox_name = _s(cells, idx, "hitbox", "")
 	## 【m84 方案C】尾部新列（旧文件无此列→默认 false=参与打压）
 	suppress_exempt = _b(cells, idx, "suppress_exempt", false)
+	## 【m88 特殊弹设四钩】尾部三列（旧文件缺列=默认关闭）
+	var nc := _num_or_expr(cells, idx, "nearclear", 0.0)
+	nearclear = int(nc[0]); nearclear_s = nc[1]
+	death_evs = _s(cells, idx, "death_evs", "")
+	spawn_conv = _s(cells, idx, "spawn_conv", "")
 	var pyo := _num_or_expr(cells, idx, "y_offset", 0.0)
 	y_offset = pyo[0]; y_offset_s = pyo[1]
 	speed = _s(cells, idx, "speed", "")
@@ -769,6 +792,8 @@ func to_csv_row() -> String:
 		(_s_if(spin_x_s, spin_x)), (_s_if(spin_y_s, spin_y)), hitbox_name,
 		## 【m84 方案C】suppress_exempt 尾列（与 CSV_HEADER 尾部追加对齐）
 		int(suppress_exempt),
+		## 【m88 特殊弹设四钩】尾部三列（同规则：算式列有原文写原文）
+		(_s_if(nearclear_s, nearclear)), death_evs, spawn_conv,
 	]
 	var parts: Array[String] = []
 	for v in vals:
@@ -844,6 +869,7 @@ func compile() -> Array[String]:
 	ex_repeat_time = _compile_one(repeat_time_s, errs, "repeat_time")
 	ex_repeat_freq = _compile_one(repeat_freq_s, errs, "repeat_freq")
 	ex_range = _compile_one(range_s, errs, "range")
+	ex_nearclear = _compile_one(nearclear_s, errs, "nearclear") if nearclear_s != "" else null
 	## 【m84 方案C】打压档案前置（见字段注释）：常量列直接缓存折半值
 	sup_class = ex_repeat_freq != null or repeat_freq > 0
 	sup_half_range = float(range_frames) * 0.5 if ex_range == null else -1.0
