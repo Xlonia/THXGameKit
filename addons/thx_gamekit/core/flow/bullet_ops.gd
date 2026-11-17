@@ -35,6 +35,8 @@ static func select(bullets: Array, anchor: Vector2, sel: Dictionary) -> Array:
 		var dx: float = bl.pos.x - anchor.x
 		var dy: float = bl.pos.y - anchor.y
 		match shape:
+			"all":
+				pass ## 【m90 scheme 修正】全部弹幕个体（弹幕选择器留空=全场）
 			"circle":
 				if dx * dx + dy * dy > r2:
 					continue

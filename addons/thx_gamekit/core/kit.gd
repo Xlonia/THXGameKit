@@ -123,6 +123,9 @@ func _ready() -> void:
 	## 编辑器"导出为官方数据"时写入）：编辑器 tab 与运行时共同生效；
 	## 编辑器环境也读（主屏 tab 须显示上次保存值）
 	_load_deployed_cfg()
+	_load_official_timelines() ## 【m90 主屏 tab 修复（作者：只有少数字幕）】
+	## 场景树页时间轴列表在编辑器态也需要数据源（官方时间轴仅 1-2 文件，
+	## 装载代价极小——m69 的"编辑器态不重装载"门针对批量事件 IO，不涉此时）
 	if Engine.is_editor_hint():
 		return
 	## 【m74 修复】下列装载行自 m69 起被误并进 _load_deployed_cfg 函数体

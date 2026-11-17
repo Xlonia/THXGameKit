@@ -2724,72 +2724,74 @@ func _build_chara_page() -> Control:
 							_set_status("写盘失败：%s" % cname)
 						_chara_render.call())
 			add.add_child(addb)
-		## 【m89 符卡分配（作者令：角色页根本没有分配符卡的选项）】
-		## spell_evs 列=符卡轮放列表（主要符卡 X+C 按 idx 轮放）；
+		## 【m89→m90 三档符卡分配（作者裁定：能力/符卡/主要符卡——类似火力点
+		## 分三栏选取修改）】列映射 n=skill_evs / s=spell_s_evs / m=spell_evs；
 		## 引用名解析：编辑器工作集（符卡页）→ spell.csv 注册表（含部署侧）
-		var sp_l := Label.new()
-		sp_l.text = "  符卡列表（spell_evs；X+C 主要符卡按序轮放，%d 张）" % \
-			String(edit_row.get("spell_evs", "")).split(";", false).size()
-		detail.add_child(sp_l)
-		for sp_name in String(edit_row.get("spell_evs", "")).split(";", false):
-			var spn := sp_name.strip_edges()
-			if spn == "":
-				continue
-			var sp_row := HBoxContainer.new()
-			detail.add_child(sp_row)
-			var found_sp: bool = false
-			for esp in GameGlobals.editor_spells:
-				if esp.spell_name == spn:
-					found_sp = true
-					break
-			if not found_sp:
-				found_sp = THXKit.spell_cards.has(spn)
-			var sp_nm := Label.new()
-			sp_nm.text = "    ▸ %s%s" % [spn, "" if found_sp else "（未找到——符卡页新建或 spell.csv 导入）"]
-			sp_nm.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-			sp_row.add_child(sp_nm)
-			var sp_rm := Button.new()
-			sp_rm.text = "移除"
-			sp_rm.pressed.connect(func():
-				var cur3: PackedStringArray = String(edit_row.get("spell_evs", "")).split(";", false)
-				cur3.erase(spn)
-				edit_row["spell_evs"] = ";".join(cur3)
-				if CharaDB.save_row(cname, edit_row):
-					_set_status("已移除符卡 %s 并写入 Characters.csv" % spn)
-				else:
-					_set_status("写盘失败：%s" % cname)
-				_chara_render.call())
-			sp_row.add_child(sp_rm)
-		var sp_add := HBoxContainer.new()
-		detail.add_child(sp_add)
-		var sp_o := OptionButton.new()
-		var sp_seen := PackedStringArray()
-		for esp in GameGlobals.editor_spells:
-			sp_seen.append(esp.spell_name)
-			sp_o.add_item("符卡 %s" % esp.spell_name)
-			sp_o.set_item_metadata(sp_o.item_count - 1, esp.spell_name)
-		for scn in THXKit.spell_cards.keys():
-			if not sp_seen.has(String(scn)):
-				sp_o.add_item("符卡 %s" % scn)
-				sp_o.set_item_metadata(sp_o.item_count - 1, scn)
-		if sp_o.item_count > 0:
-			sp_o.select(0)
-		sp_add.add_child(sp_o)
-		var sp_addb := Button.new()
-		sp_addb.text = "分配给该角色"
-		sp_addb.pressed.connect(func():
-			if sp_o.selected >= 0:
-				var snm: String = str(sp_o.get_item_metadata(sp_o.selected))
-				var cur4: PackedStringArray = String(edit_row.get("spell_evs", "")).split(";", false)
-				if snm != "" and not cur4.has(snm):
-					cur4.append(snm)
-					edit_row["spell_evs"] = ";".join(cur4)
+		for slot_cfg in [["n", "能力（n 档）", "skill_evs"], ["s", "符卡（s 档）", "spell_s_evs"], ["m", "主要符卡（X+C，m 档）", "spell_evs"]]:
+			var sp_col: String = slot_cfg[2]
+			var sp_l := Label.new()
+			sp_l.text = "  %s（%s；按序轮放，%d 张）" % [slot_cfg[1], sp_col,
+				String(edit_row.get(sp_col, "")).split(";", false).size()]
+			detail.add_child(sp_l)
+			for sp_name in String(edit_row.get(sp_col, "")).split(";", false):
+				var spn := sp_name.strip_edges()
+				if spn == "":
+					continue
+				var sp_row := HBoxContainer.new()
+				detail.add_child(sp_row)
+				var found_sp: bool = false
+				for esp in GameGlobals.editor_spells:
+					if esp.spell_name == spn:
+						found_sp = true
+						break
+				if not found_sp:
+					found_sp = THXKit.spell_cards.has(spn)
+				var sp_nm := Label.new()
+				sp_nm.text = "    ▸ %s%s" % [spn, "" if found_sp else "（未找到——符卡页新建或 spell.csv 导入）"]
+				sp_nm.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+				sp_row.add_child(sp_nm)
+				var sp_rm := Button.new()
+				sp_rm.text = "移除"
+				sp_rm.pressed.connect(func():
+					var cur3: PackedStringArray = String(edit_row.get(sp_col, "")).split(";", false)
+					cur3.erase(spn)
+					edit_row[sp_col] = ";".join(cur3)
 					if CharaDB.save_row(cname, edit_row):
-						_set_status("已分配符卡 %s → %s 并写入 Characters.csv" % [snm, cname])
+						_set_status("已移除 %s: %s 并写入 Characters.csv" % [sp_col, spn])
 					else:
 						_set_status("写盘失败：%s" % cname)
 					_chara_render.call())
-		sp_add.add_child(sp_addb)
+				sp_row.add_child(sp_rm)
+			var sp_add := HBoxContainer.new()
+			detail.add_child(sp_add)
+			var sp_o := OptionButton.new()
+			var sp_seen := PackedStringArray()
+			for esp in GameGlobals.editor_spells:
+				sp_seen.append(esp.spell_name)
+				sp_o.add_item("符卡 %s" % esp.spell_name)
+				sp_o.set_item_metadata(sp_o.item_count - 1, esp.spell_name)
+			for scn in THXKit.spell_cards.keys():
+				if not sp_seen.has(String(scn)):
+					sp_o.add_item("符卡 %s" % scn)
+					sp_o.set_item_metadata(sp_o.item_count - 1, scn)
+			if sp_o.item_count > 0:
+				sp_o.select(0)
+			sp_add.add_child(sp_o)
+			var sp_addb := Button.new()
+			sp_addb.text = "分配给该角色"
+			sp_addb.pressed.connect(func():
+				if sp_o.selected >= 0:
+					var snm: String = str(sp_o.get_item_metadata(sp_o.selected))
+					var cur4: PackedStringArray = String(edit_row.get(sp_col, "")).split(";", false)
+					if snm != "" and not cur4.has(snm):
+						cur4.append(snm)
+						edit_row[sp_col] = ";".join(cur4)
+						if CharaDB.save_row(cname, edit_row):
+							_set_status("已分配符卡 %s → %s（%s）并写入 Characters.csv" % [snm, cname, sp_col])
+						else:
+							_set_status("写盘失败：%s" % cname)
+						_chara_render.call())
+			sp_add.add_child(sp_addb)
 		## 【0.0.9·角色贴图（作者 20261110 补欠账）】Players/Battle/Chars/<名>.PNG
 		## 导入（复制入工程）/清除（改名 .bak 可恢复）/预览（图集显首帧+帧数信息）
 		var tex_l := Label.new()

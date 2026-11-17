@@ -151,6 +151,14 @@ func _build_tree_page() -> Control:
 	tls.custom_minimum_size = Vector2(0, 160)
 	for tl in _kit_field("editor_timelines"): ## 弱类型（编辑器扫描期类型注册未完成）
 		tls.add_item(tl.tl_name)
+	## 【m90 主屏 tab 修复（作者：只有少数字幕）】官方时间轴一并显示
+	## （编辑器态工作集为空=列表全空=页面只剩提示文字）——含部署侧
+	var kit = _kit()
+	if kit != null:
+		for tl2 in kit.official_timelines.values():
+			tls.add_item("[官方] %s" % tl2.tl_name)
+	if tls.item_count == 0:
+		tls.add_item("（暂无时间轴——弹幕编辑器时间轴页新建/官方表载入）")
 	box.add_child(tls)
 	return sc
 
