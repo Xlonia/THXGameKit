@@ -93,6 +93,9 @@ const CSV_HEADER: PackedStringArray = [
 	"color_r", "color_g", "color_b", "color_ab",
 	"clash", "active", "clash_ddm", "inherit_when", "release_when", "inherit",
 	"spin_x", "spin_y", "hitbox",
+	## 【m84 方案C（作者裁定 20261117）】超阈值打压豁免——勾选后该弹幕
+	## 到达弹幕阈值时不参与"存活/重复减半"护栏（严重影响玩法的直白开关）
+	"suppress_exempt",
 ]
 
 ## —— 元数据 ——
@@ -136,6 +139,9 @@ var repeat_time_s := ""
 var repeat_freq_s := ""
 var range_frames := 300
 var range_s := ""
+## 【m84 方案C（作者裁定 20261117：峰值打压+豁免）】suppress_exempt=真时
+## 战场到达弹幕阈值也不对本事件做"存活/重复减半"（编辑器勾选框直读此列）
+var suppress_exempt := false
 var is_abs_coord := false
 var dmg := 1
 var dmg_s := ""
@@ -299,6 +305,13 @@ var ex_rrot_delay = null
 var ex_repeat_time = null
 var ex_repeat_freq = null
 var ex_range = null
+## 【m84 方案C·初始化预备（作者 20261117："初始化宁愿多卡顿一点，换运行时的
+## 轻松"）】超阈值打压档案——compile() 一次算好，战场出生路径零额外求值：
+##   sup_class=高重复类（repeat_freq 常量>0 或带表达式）
+##   sup_half_range/sup_half_freq=常量列的折半缓存（-1=表达式列→出生时一次乘法兜底）
+var sup_class := false
+var sup_half_range := -1.0
+var sup_half_freq := -1
 var ex_dmg = null
 var ex_size = null
 var ex_xoff = null
@@ -646,6 +659,8 @@ func from_csv_row(cells: PackedStringArray) -> Error:
 	var spy := _num_or_expr(cells, idx, "spin_y", 0.0)
 	spin_y = spy[0]; spin_y_s = spy[1]
 	hitbox_name = _s(cells, idx, "hitbox", "")
+	## 【m84 方案C】尾部新列（旧文件无此列→默认 false=参与打压）
+	suppress_exempt = _b(cells, idx, "suppress_exempt", false)
 	var pyo := _num_or_expr(cells, idx, "y_offset", 0.0)
 	y_offset = pyo[0]; y_offset_s = pyo[1]
 	speed = _s(cells, idx, "speed", "")
@@ -752,6 +767,8 @@ func to_csv_row() -> String:
 		color_r_s, color_g_s, color_b_s, color_ab_s,
 		clash_s, active_s, clash_ddm_s, inherit_when_s, release_when_s, inherit_s,
 		(_s_if(spin_x_s, spin_x)), (_s_if(spin_y_s, spin_y)), hitbox_name,
+		## 【m84 方案C】suppress_exempt 尾列（与 CSV_HEADER 尾部追加对齐）
+		int(suppress_exempt),
 	]
 	var parts: Array[String] = []
 	for v in vals:
@@ -827,6 +844,10 @@ func compile() -> Array[String]:
 	ex_repeat_time = _compile_one(repeat_time_s, errs, "repeat_time")
 	ex_repeat_freq = _compile_one(repeat_freq_s, errs, "repeat_freq")
 	ex_range = _compile_one(range_s, errs, "range")
+	## 【m84 方案C】打压档案前置（见字段注释）：常量列直接缓存折半值
+	sup_class = ex_repeat_freq != null or repeat_freq > 0
+	sup_half_range = float(range_frames) * 0.5 if ex_range == null else -1.0
+	sup_half_freq = (repeat_freq >> 1) if ex_repeat_freq == null else -1
 	ex_dmg = _compile_one(dmg_s, errs, "dmg")
 	ex_size = _compile_one(danmaku_size_muti_s, errs, "danmaku_size_muti")
 	ex_xoff = _compile_one(x_offset_s, errs, "x_offset")

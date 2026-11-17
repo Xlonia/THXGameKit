@@ -320,6 +320,10 @@ func setup(event: DanmakuEventData, spawn_origin: Vector2, bullet_side: int, src
 	apply_lod(self) ## 【m82 LOD】出生参数求值后同样封顶
 	var rpnow: Dictionary = ev.eval_repeat_params(s_ctx0)
 	repeat_time_now = int(rpnow["time"])
+	## 【m83 初始化 fastpath（作者 20261117：明确不启用的直接略走——初始化
+	## 多卡一点换运行时轻松）】repeat_time=0 的弹直接关补发通道（repeat_tick
+	## 提前跳过；原先恒 true=每弹每帧空查）
+	repeat_enabled = repeat_time_now > 0
 	repeat_freq_now = int(rpnow["freq"])
 	## 【20261025】x_copy/y_copy 依赖当前位置（每帧变化）→ 线性闭包不适用，跳过
 	if _xy_in_motion:
@@ -1489,15 +1493,22 @@ func modulate_color() -> Color:
 	return _col_cache
 
 ## 【0.0.9·定值预计算】draw 侧快速读取（static=零计算；表达式弹回退逐算）
+var _rc_pair: Array = [Color.WHITE, 1.0] ## 【m83 审计修复②】静态路径复用数组（免每弹每帧分配）
+
 func render_color_alpha() -> Array:
 	if _rc_static and not _rc_dirty:
-		return [_rc_color, _rc_alpha]
+		_rc_pair[0] = _rc_color
+		_rc_pair[1] = _rc_alpha
+		return _rc_pair
 	var c := modulate_color()
 	var a := current_alpha_01()
 	if _rc_static and _rc_dirty:
 		_rc_color = c
 		_rc_alpha = a
 		_rc_dirty = false
+		_rc_pair[0] = c
+		_rc_pair[1] = a
+		return _rc_pair
 	return [c, a]
 
 func current_alpha_01() -> float:
