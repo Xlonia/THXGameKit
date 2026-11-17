@@ -338,6 +338,13 @@ func _ready() -> void:
 	_refresh_list()
 	if not events.is_empty():
 		_select(0)
+	## 【m83 探针启动符（作者 20261117：手动/批处理/启动符按需启动——工程师
+	## 带工具箱去检修，而不是背一房子工具）】用户参数含 probe=编辑器直接
+	## 展开探针页（探针页本身懒建+手动刷新，无自动加载）
+	for uarg in OS.get_cmdline_user_args():
+		if uarg.strip_edges() == "probe":
+			_show_top_page("probe")
+			break
 	## 【独立进程启动参数 20261114】标题"继续"=独立编辑器进程+工程路径随 -- 传递：
 	## 命令行带 .thxp/.thx/.thxe 时启动即自动载入（等价"打开"菜单，含工程路径记忆）
 	for uarg in OS.get_cmdline_user_args():
