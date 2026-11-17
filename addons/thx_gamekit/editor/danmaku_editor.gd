@@ -1986,16 +1986,39 @@ func _on_export_official() -> void:
 		f.store_string(DanmakuEventData.build_csv(rows))
 		f.close()
 		written += rows.size()
-	## 【m86 片段】danmaku_clip.csv 随官方数据落盘（部署侧 battle_arena._ready 并入；
-	## 即时并入注册表=运行时无需重启）
+	## 【m86 片段】【m89 合并语义（作者实测 20261118：未进片段页导出=空工作集
+	## 覆盖部署文件=13 片段被清空）】导出=现有部署行打底+工作集覆盖同名——
+	## 未访问页面/空工作集不再清空部署数据。spell.csv 同法（工作集符卡落盘）。
 	if not GameGlobals.OFFICIAL_EVENT_CSVS.is_empty():
 		var base: String = String(GameGlobals.OFFICIAL_EVENT_CSVS.values()[0]).get_base_dir()
-		var cf := FileAccess.open(base.path_join("danmaku_clip.csv"), FileAccess.WRITE)
+		## —— 片段合并导出 ——
+		var clip_merged := {}
+		var clip_path := base.path_join("danmaku_clip.csv")
+		if FileAccess.file_exists(clip_path):
+			for cd0 in ClipData.parse_csv(FileAccess.get_file_as_string(clip_path)):
+				clip_merged[cd0.clip_name] = cd0
+		for cd1 in GameGlobals.editor_clips:
+			clip_merged[cd1.clip_name] = cd1
+		var cf := FileAccess.open(clip_path, FileAccess.WRITE)
 		if cf != null:
-			cf.store_string(ClipData.save_csv(GameGlobals.editor_clips))
+			cf.store_string(ClipData.save_csv(clip_merged.values()))
 			cf.close()
 			for cd2 in GameGlobals.editor_clips:
 				THXKit.clips[cd2.clip_name] = cd2
+		## —— 符卡合并导出（m89：作者在符卡页新建的符卡可落盘部署）——
+		var spell_merged := {}
+		var spell_path := base.path_join("spell.csv")
+		if FileAccess.file_exists(spell_path):
+			for sp0 in SpellData.parse_csv(FileAccess.get_file_as_string(spell_path)):
+				spell_merged[sp0.spell_name] = sp0
+		for sp1 in GameGlobals.editor_spells:
+			spell_merged[sp1.spell_name] = sp1
+		var sf := FileAccess.open(spell_path, FileAccess.WRITE)
+		if sf != null:
+			sf.store_string(SpellData.save_csv(spell_merged.values()))
+			sf.close()
+			for sp2 in GameGlobals.editor_spells:
+				THXKit.spell_cards[sp2.spell_name] = sp2
 	var copied := 0
 	for tex_name in GameGlobals.editor_textures:
 		var src := _texture_cache_path(tex_name)
@@ -2701,6 +2724,72 @@ func _build_chara_page() -> Control:
 							_set_status("写盘失败：%s" % cname)
 						_chara_render.call())
 			add.add_child(addb)
+		## 【m89 符卡分配（作者令：角色页根本没有分配符卡的选项）】
+		## spell_evs 列=符卡轮放列表（主要符卡 X+C 按 idx 轮放）；
+		## 引用名解析：编辑器工作集（符卡页）→ spell.csv 注册表（含部署侧）
+		var sp_l := Label.new()
+		sp_l.text = "  符卡列表（spell_evs；X+C 主要符卡按序轮放，%d 张）" % \
+			String(edit_row.get("spell_evs", "")).split(";", false).size()
+		detail.add_child(sp_l)
+		for sp_name in String(edit_row.get("spell_evs", "")).split(";", false):
+			var spn := sp_name.strip_edges()
+			if spn == "":
+				continue
+			var sp_row := HBoxContainer.new()
+			detail.add_child(sp_row)
+			var found_sp: bool = false
+			for esp in GameGlobals.editor_spells:
+				if esp.spell_name == spn:
+					found_sp = true
+					break
+			if not found_sp:
+				found_sp = THXKit.spell_cards.has(spn)
+			var sp_nm := Label.new()
+			sp_nm.text = "    ▸ %s%s" % [spn, "" if found_sp else "（未找到——符卡页新建或 spell.csv 导入）"]
+			sp_nm.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+			sp_row.add_child(sp_nm)
+			var sp_rm := Button.new()
+			sp_rm.text = "移除"
+			sp_rm.pressed.connect(func():
+				var cur3: PackedStringArray = String(edit_row.get("spell_evs", "")).split(";", false)
+				cur3.erase(spn)
+				edit_row["spell_evs"] = ";".join(cur3)
+				if CharaDB.save_row(cname, edit_row):
+					_set_status("已移除符卡 %s 并写入 Characters.csv" % spn)
+				else:
+					_set_status("写盘失败：%s" % cname)
+				_chara_render.call())
+			sp_row.add_child(sp_rm)
+		var sp_add := HBoxContainer.new()
+		detail.add_child(sp_add)
+		var sp_o := OptionButton.new()
+		var sp_seen := PackedStringArray()
+		for esp in GameGlobals.editor_spells:
+			sp_seen.append(esp.spell_name)
+			sp_o.add_item("符卡 %s" % esp.spell_name)
+			sp_o.set_item_metadata(sp_o.item_count - 1, esp.spell_name)
+		for scn in THXKit.spell_cards.keys():
+			if not sp_seen.has(String(scn)):
+				sp_o.add_item("符卡 %s" % scn)
+				sp_o.set_item_metadata(sp_o.item_count - 1, scn)
+		if sp_o.item_count > 0:
+			sp_o.select(0)
+		sp_add.add_child(sp_o)
+		var sp_addb := Button.new()
+		sp_addb.text = "分配给该角色"
+		sp_addb.pressed.connect(func():
+			if sp_o.selected >= 0:
+				var snm: String = str(sp_o.get_item_metadata(sp_o.selected))
+				var cur4: PackedStringArray = String(edit_row.get("spell_evs", "")).split(";", false)
+				if snm != "" and not cur4.has(snm):
+					cur4.append(snm)
+					edit_row["spell_evs"] = ";".join(cur4)
+					if CharaDB.save_row(cname, edit_row):
+						_set_status("已分配符卡 %s → %s 并写入 Characters.csv" % [snm, cname])
+					else:
+						_set_status("写盘失败：%s" % cname)
+					_chara_render.call())
+		sp_add.add_child(sp_addb)
 		## 【0.0.9·角色贴图（作者 20261110 补欠账）】Players/Battle/Chars/<名>.PNG
 		## 导入（复制入工程）/清除（改名 .bak 可恢复）/预览（图集显首帧+帧数信息）
 		var tex_l := Label.new()
@@ -2809,7 +2898,7 @@ const FLOW_OPS := {
 }
 
 ## 伪节点图区块：步骤节点列表（每步=键名/名称/参数/排序/删除/复制）
-func _build_steps_editor(title: String, steps: Array) -> Control:
+func _build_steps_editor(title: String, steps: Array, refresh_cb: Callable = Callable()) -> Control:
 	var box := VBoxContainer.new()
 	box.add_theme_constant_override("separation", 4)
 	var head := HBoxContainer.new()
@@ -2831,7 +2920,8 @@ func _build_steps_editor(title: String, steps: Array) -> Control:
 		var op := add_pick.get_item_text(add_pick.selected)
 		var d: Dictionary = {"op": op, "arg": str(FLOW_OPS[op]["arg"]), "params": str(FLOW_OPS[op]["params"])}
 		steps.append(d)
-		_refresh_tl_detail())
+		if refresh_cb.is_valid():
+			refresh_cb.call())
 	head.add_child(add_b)
 	var list_box := VBoxContainer.new()
 	box.add_child(list_box)
@@ -2864,7 +2954,8 @@ func _build_steps_editor(title: String, steps: Array) -> Control:
 				var tmp = steps[i - 1]
 				steps[i - 1] = steps[i]
 				steps[i] = tmp
-				_refresh_tl_detail())
+				if refresh_cb.is_valid():
+					refresh_cb.call())
 		row.add_child(up_b)
 		var dn_b := Button.new()
 		dn_b.text = "↓"
@@ -2874,14 +2965,16 @@ func _build_steps_editor(title: String, steps: Array) -> Control:
 				var tmp = steps[i + 1]
 				steps[i + 1] = steps[i]
 				steps[i] = tmp
-				_refresh_tl_detail())
+				if refresh_cb.is_valid():
+					refresh_cb.call())
 		row.add_child(dn_b)
 		var del_b := Button.new()
 		del_b.text = "✕"
 		del_b.focus_mode = Control.FOCUS_NONE
 		del_b.pressed.connect(func():
 			steps.remove_at(i)
-			_refresh_tl_detail())
+			if refresh_cb.is_valid():
+				refresh_cb.call())
 		row.add_child(del_b)
 		var cp_b := Button.new()
 		cp_b.text = "⧉"
@@ -2983,9 +3076,11 @@ func _refresh_spell_detail() -> void:
 	tip.add_theme_font_size_override("font_size", 12)
 	tip.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_spell_detail.add_child(tip)
-	_spell_detail.add_child(_build_steps_editor("spellstart（符卡启动）", sp.steps_start))
-	_spell_detail.add_child(_build_steps_editor("spellfin（符卡结束）", sp.steps_fin))
-	_spell_detail.add_child(_build_steps_editor("spelltick（每事件帧）", sp.steps_tick))
+	## 【m89 修复（作者致命报错 3243）】owner 回调=符卡页刷新（原 m77 迁移
+	## 遗留还在调时间轴页刷新→_tl_detail 未建=崩溃）
+	_spell_detail.add_child(_build_steps_editor("spellstart（符卡启动）", sp.steps_start, _refresh_spell_detail))
+	_spell_detail.add_child(_build_steps_editor("spellfin（符卡结束）", sp.steps_fin, _refresh_spell_detail))
+	_spell_detail.add_child(_build_steps_editor("spelltick（每事件帧）", sp.steps_tick, _refresh_spell_detail))
 
 ## —— 片段页（m86：danmaku_clip.csv 编辑——弹幕→片段→角色两步流的中段）——
 ## 片段=可安放数个弹幕事件的时间轴（scheme 新二 710/142）；长度=最低长度
