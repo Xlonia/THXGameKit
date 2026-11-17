@@ -20,6 +20,10 @@ var editor_timelines: Array:
 var editor_spells: Array:
 	get: return THXKit.editor_spells
 	set(v): THXKit.editor_spells = v
+## 【m86 片段】编辑器工作集（与 spells 同约定——同一实例委托内核）
+var editor_clips: Array:
+	get: return THXKit.editor_clips
+	set(v): THXKit.editor_clips = v
 var official_events: Dictionary:
 	get: return THXKit.official_events
 var mod_events: Dictionary:

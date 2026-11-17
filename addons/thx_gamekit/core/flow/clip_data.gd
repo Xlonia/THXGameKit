@@ -25,6 +25,22 @@ func flat_entries() -> Array:
 			out.append({"tick": int(k), "name": String(nm)})
 	return out
 
+## —— 编辑器助手（与 TimelineData add_event/set_events 同构）——
+func events_at(tick: int) -> Array:
+	return ticks.get(tick, [])
+
+func add_event(tick: int, ev_name: String) -> void:
+	var arr: Array = ticks.get(tick, [])
+	if not arr.has(ev_name):
+		arr.append(ev_name)
+	ticks[tick] = arr
+
+func set_events(tick: int, names: Array) -> void:
+	if names.is_empty():
+		ticks.erase(tick)
+	else:
+		ticks[tick] = names
+
 static func _cell_json(ticks: Dictionary) -> String:
 	var out := {}
 	for k in ticks:
@@ -64,3 +80,10 @@ func to_csv_row() -> String:
 	## 三列：名/长度/ticks(JSON)——只有 JSON 格含逗号需引号包裹（RFC4180 双写）
 	var j := _cell_json(ticks)
 	return "%s,%d,\"%s\"" % [clip_name, length_ticks, j.replace("\"", "\"\"")]
+
+## danmaku_clip.csv 全文（表头+逐行）——编辑器包保存/导出官方数据用
+static func save_csv(clips: Array) -> String:
+	var lines: Array[String] = ["clip_name,length,ticks"]
+	for c in clips:
+		lines.append((c as ClipData).to_csv_row())
+	return "\n".join(lines) + "\n"

@@ -103,6 +103,7 @@ var loaded_mods: Array[String] = []  ## 已加载 .thx 文件名（UI 展示用�
 var editor_events: Array = []        ## 编辑器工作集（弹幕事件；编辑器必备件共享）
 var editor_timelines: Array = []     ## 编辑器工作集（时间轴）
 var editor_spells: Array = []        ## 编辑器工作集（符卡——SpellData 列表）
+var editor_clips: Array = []         ## 【m86】编辑器工作集（片段——ClipData 列表；解析序=工作集>注册表）
 var official_timelines: Dictionary = {} ## 官方时间轴注册表（名→TimelineData）
 var mod_timelines: Dictionary = {}   ## mod 时间轴注册表（名→TimelineData）
 ## 【m85 片段（作者裁定 20261117）】火力点配置从弹幕本身改为单弹幕片段——
@@ -169,7 +170,15 @@ func load_clips() -> void:
 			clips[cd.clip_name] = cd
 
 func resolve_clip(clip_name: String) -> ClipData:
+	## 解析序：编辑器工作集（试炼场实时改可见）→ 注册表
+	for cd: ClipData in editor_clips:
+		if cd.clip_name == clip_name:
+			return cd
 	return clips.get(clip_name)
+
+## 【m86 片段引用统一解析】片段名→ClipData；旧直引事件名返回 null（调用方回退事件解析）
+func _resolve_clip_ref(ref: String) -> ClipData:
+	return resolve_clip(ref)
 
 func _load_deployed_cfg() -> void:
 	## 【m69】部署项目内核配置回读（res://gameAssetBase/thx_kernel_cfg.json）：
@@ -362,9 +371,9 @@ func get_slot_events(owner_name: String, slot: String, row: Dictionary = {}) -> 
 		var ref: String = nm.strip_edges()
 		if ref == "":
 			continue
-		## 【m85 片段化】槽位引用可为片段名（展开其事件，升 tick 平铺）
-		## 或旧直引事件名（向后兼容）
-		var cd := clips.get(ref)
+		## 【m85 片段化】【m86 解析序=工作集>注册表】槽位引用可为片段名
+		## （展开其事件，升 tick 平铺）或旧直引事件名（向后兼容）
+		var cd := _resolve_clip_ref(ref)
 		if cd != null:
 			for ent in (cd as ClipData).flat_entries():
 				var ev_c := resolve_event_by_name(ent["name"])
@@ -391,7 +400,7 @@ func get_slot_entries(owner_name: String, slot: String, row: Dictionary = {}) ->
 		var ref: String = nm.strip_edges()
 		if ref == "":
 			continue
-		var cd := clips.get(ref)
+		var cd := _resolve_clip_ref(ref)
 		if cd != null:
 			for ent in (cd as ClipData).flat_entries():
 				var ev_c := resolve_event_by_name(ent["name"])

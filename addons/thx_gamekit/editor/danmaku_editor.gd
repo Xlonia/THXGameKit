@@ -420,7 +420,7 @@ func _build_ui() -> void:
 	var pagerow := HBoxContainer.new()
 	left.add_child(pagerow)
 	var group := ButtonGroup.new()
-	for pg in [["danmaku", "弹幕"], ["chara", "角色"], ["privates", "杂兵"], ["timeline", "时间轴"], ["spell", "符卡"], ["formation", "排布"]]:
+	for pg in [["danmaku", "弹幕"], ["chara", "角色"], ["privates", "杂兵"], ["timeline", "时间轴"], ["spell", "符卡"], ["clip", "片段"], ["formation", "排布"]]:
 		var b := Button.new()
 		b.text = pg[1]
 		b.toggle_mode = true
@@ -445,7 +445,7 @@ func _build_ui() -> void:
 	left.add_child(_asset_users)
 	_refresh_assets()
 	## 右：三个主页面
-	_pages = { "danmaku": _build_danmaku_page(), "chara": ScrollContainer.new(), "privates": ScrollContainer.new(), "timeline": ScrollContainer.new(), "spell": ScrollContainer.new(), "formation": _build_formation_page() }
+	_pages = { "danmaku": _build_danmaku_page(), "chara": ScrollContainer.new(), "privates": ScrollContainer.new(), "timeline": ScrollContainer.new(), "spell": ScrollContainer.new(), "clip": ScrollContainer.new(), "formation": _build_formation_page() }
 	for k in _pages:
 		_pages[k].size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		_pages[k].size_flags_vertical = Control.SIZE_EXPAND_FILL
@@ -733,6 +733,8 @@ func _show_main_page(key: String) -> void:
 		_pages["timeline"].add_child(_build_timeline_page())
 	if key == "spell" and _pages["spell"].get_child_count() == 0:
 		_pages["spell"].add_child(_build_spell_page())
+	if key == "clip" and _pages["clip"].get_child_count() == 0:
+		_pages["clip"].add_child(_build_clip_page()) ## 【m86 片段页】
 
 ## —— 弹幕页（原主体：事件列表 + 标签页）——
 func _build_danmaku_page() -> HSplitContainer:
@@ -1821,6 +1823,8 @@ func _save_package(path: String, fmt: String) -> void:
 	## 非空时写入 scenarios/<名>.thxs（纯文本随包）
 	## 【m77 符卡】spell.csv 随包（danmaku/spell.csv——scheme 概述）
 	payload["danmaku/spell.csv"] = SpellData.save_csv(GameGlobals.editor_spells).to_utf8_buffer()
+	## 【m86 片段】danmaku_clip.csv 随包（三列——弹幕→片段→角色中段）
+	payload["danmaku_clip.csv"] = ClipData.save_csv(GameGlobals.editor_clips).to_utf8_buffer()
 	if THXKit.scenario_name != "":
 		var scn_path := THXKit.SCENARIO_DIR.path_join(THXKit.scenario_name + ".thxs")
 		if FileAccess.file_exists(scn_path):
@@ -1900,11 +1904,16 @@ func _load_package(path: String) -> bool:
 	_set_events(DanmakuEventData.parse_csv_text(""))
 	var imported := 0
 	GameGlobals.editor_timelines = [] ## 打开新包 → 时间轴以包内容为准
+	GameGlobals.editor_clips = [] ## 【m86】片段以包内容为准
 	var chara_rows := 0
 	var priv_rows := 0
 	for f in files:
 		if f.begins_with("danmaku_event") and f.ends_with(".csv"):
 			events.append_array(DanmakuEventData.parse_csv_text(zr.read_file(f).get_string_from_utf8()))
+		elif f == "danmaku_clip.csv":
+			GameGlobals.editor_clips = ClipData.parse_csv(zr.read_file(f).get_string_from_utf8()) ## 【m86】
+		elif f == "danmaku/spell.csv":
+			GameGlobals.editor_spells = SpellData.parse_csv(zr.read_file(f).get_string_from_utf8()) ## 【m86 补缺口】包保存了 spell.csv 但装载从未恢复
 		elif f.begins_with("texture/"):
 			var tex_name := f.get_file().get_basename()
 			if DanmakuTex.load_from_bytes(tex_name, zr.read_file(f)):
@@ -1973,6 +1982,16 @@ func _on_export_official() -> void:
 		f.store_string(DanmakuEventData.build_csv(rows))
 		f.close()
 		written += rows.size()
+	## 【m86 片段】danmaku_clip.csv 随官方数据落盘（部署侧 battle_arena._ready 并入；
+	## 即时并入注册表=运行时无需重启）
+	if not GameGlobals.OFFICIAL_EVENT_CSVS.is_empty():
+		var base: String = String(GameGlobals.OFFICIAL_EVENT_CSVS.values()[0]).get_base_dir()
+		var cf := FileAccess.open(base.path_join("danmaku_clip.csv"), FileAccess.WRITE)
+		if cf != null:
+			cf.store_string(ClipData.save_csv(GameGlobals.editor_clips))
+			cf.close()
+			for cd2 in GameGlobals.editor_clips:
+				THXKit.clips[cd2.clip_name] = cd2
 	var copied := 0
 	for tex_name in GameGlobals.editor_textures:
 		var src := _texture_cache_path(tex_name)
@@ -2612,13 +2631,23 @@ func _build_chara_page() -> Control:
 				var row := HBoxContainer.new()
 				detail.add_child(row)
 				var found_ev: DanmakuEventData = null
+				var found_clip: ClipData = null
 				for e5 in events:
 					if e5.event_name == nm0:
 						found_ev = e5
 						break
+				if found_ev == null: ## 【m86 片段化】绑定项可为片段名
+					for cd9 in GameGlobals.editor_clips:
+						if cd9.clip_name == nm0:
+							found_clip = cd9
+							break
+					if found_clip == null:
+						found_clip = THXKit.clips.get(nm0)
+				var kind_tag := "[片段 %dtick]" % found_clip.length_ticks if found_clip != null \
+					else ("[%s]" % found_ev.tag if found_ev != null else "[?]")
+				var miss := "（未找到——名字拼错或未导入）" if (found_ev == null and found_clip == null) else ""
 				var nm := Label.new()
-				nm.text = "    ▸ %s [%s]%s" % [nm0, found_ev.tag if found_ev != null else "?",
-					"" if found_ev != null else "（未找到——名字拼错或未导入）"]
+				nm.text = "    ▸ %s %s%s" % [nm0, kind_tag, miss]
 				nm.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 				row.add_child(nm)
 				var rm := Button.new()
@@ -2635,9 +2664,20 @@ func _build_chara_page() -> Control:
 				row.add_child(rm)
 			var add := HBoxContainer.new()
 			detail.add_child(add)
+			## 【m86 片段化】槽位挂载=片段优先（弹幕→片段→角色两步流），
+			## 弹幕直引仍可选（旧数据兼容）；工作集在前、注册表去重随后
 			var ev_o := OptionButton.new()
+			var ws_names := PackedStringArray()
+			for cd8 in GameGlobals.editor_clips:
+				ws_names.append(cd8.clip_name)
+				ev_o.add_item("片段 %s" % cd8.clip_name)
+				ev_o.set_item_metadata(ev_o.item_count - 1, cd8.clip_name)
+			for cn8 in THXKit.clips.keys():
+				if not ws_names.has(String(cn8)):
+					ev_o.add_item("片段 %s" % cn8)
+					ev_o.set_item_metadata(ev_o.item_count - 1, cn8)
 			for ev in events:
-				ev_o.add_item(ev.event_name)
+				ev_o.add_item("弹幕 %s" % ev.event_name)
 				ev_o.set_item_metadata(ev_o.item_count - 1, ev.event_name)
 			if ev_o.item_count > 0:
 				ev_o.select(0)
@@ -2933,6 +2973,161 @@ func _refresh_spell_detail() -> void:
 	_spell_detail.add_child(_build_steps_editor("spellstart（符卡启动）", sp.steps_start))
 	_spell_detail.add_child(_build_steps_editor("spellfin（符卡结束）", sp.steps_fin))
 	_spell_detail.add_child(_build_steps_editor("spelltick（每事件帧）", sp.steps_tick))
+
+## —— 片段页（m86：danmaku_clip.csv 编辑——弹幕→片段→角色两步流的中段）——
+## 片段=可安放数个弹幕事件的时间轴（scheme 新二 710/142）；长度=最低长度
+## （>=火力点 Cd 对齐节拍）。角色页槽位挂片段名；FireControl 按 tick 展开发射。
+var _clip_list: ItemList = null
+var _clip_sel := -1
+var _clip_sel_tick := -1
+var _clip_detail: VBoxContainer = null
+
+func _build_clip_page() -> Control:
+	var split := HSplitContainer.new()
+	split.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	var left := VBoxContainer.new()
+	left.custom_minimum_size = Vector2(240, 0)
+	split.add_child(left)
+	_clip_list = ItemList.new()
+	_clip_list.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	_clip_list.item_selected.connect(func(i): _clip_sel = i; _refresh_clip_detail())
+	left.add_child(_clip_list)
+	var btns := HBoxContainer.new()
+	left.add_child(btns)
+	for t in ["新建", "删除"]:
+		var b := Button.new()
+		b.text = t
+		b.pressed.connect(_on_clip_btn.bind(t))
+		btns.add_child(b)
+	_clip_detail = VBoxContainer.new()
+	_clip_detail.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	split.add_child(_clip_detail)
+	_refresh_clip_list()
+	return split
+
+func _refresh_clip_list() -> void:
+	if GameGlobals.editor_clips.is_empty():
+		var cd := ClipData.new()
+		cd.clip_name = "clip_1"
+		GameGlobals.editor_clips.append(cd)
+	_clip_list.clear()
+	for cd in GameGlobals.editor_clips:
+		_clip_list.add_item("%s [%d tick %d事件]" % [cd.clip_name, cd.length_ticks, cd.ticks.size()])
+	if _clip_sel < 0 or _clip_sel >= GameGlobals.editor_clips.size():
+		_clip_sel = 0
+	_clip_list.select(_clip_sel)
+	_refresh_clip_detail()
+
+func _on_clip_btn(t: String) -> void:
+	match t:
+		"新建":
+			var cd := ClipData.new()
+			cd.clip_name = "clip_%d" % (GameGlobals.editor_clips.size() + 1)
+			GameGlobals.editor_clips.append(cd)
+			_clip_sel = GameGlobals.editor_clips.size() - 1
+			_refresh_clip_list()
+		"删除":
+			if _clip_sel >= 0:
+				GameGlobals.editor_clips.remove_at(_clip_sel)
+				_clip_sel = -1
+				_refresh_clip_list()
+
+func _refresh_clip_detail() -> void:
+	for c in _clip_detail.get_children():
+		c.queue_free()
+	if _clip_sel < 0 or _clip_sel >= GameGlobals.editor_clips.size():
+		return
+	var cd: ClipData = GameGlobals.editor_clips[_clip_sel]
+	## 元数据行：名 + 最低长度
+	var meta := HBoxContainer.new()
+	_clip_detail.add_child(meta)
+	var nm := LineEdit.new()
+	nm.text = cd.clip_name
+	nm.custom_minimum_size = Vector2(220, 0)
+	nm.text_changed.connect(func(t: String): cd.clip_name = t.strip_edges().replace("#", ""))
+	meta.add_child(nm)
+	var len_s := SpinBox.new()
+	len_s.min_value = 1
+	len_s.max_value = 600
+	len_s.value = cd.length_ticks
+	len_s.prefix = "最低长度(0.1s) "
+	len_s.value_changed.connect(func(v): cd.length_ticks = int(v))
+	meta.add_child(len_s)
+	var tip := Label.new()
+	tip.text = "弹幕片段=可安放数个弹幕事件的时间轴（0.1s/tick）。流程：弹幕页做事件 → 此页组片段 → 角色页把片段挂到 main/sub/rest 槽。长度=火力点节拍对齐的最低长度（角色 Cd 类）。随 danmaku_clip.csv 保存/导出。"
+	tip.add_theme_font_size_override("font_size", 12)
+	tip.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_clip_detail.add_child(tip)
+	## Flash 式 tick 帧格条（与时间轴页同范式）
+	var scroll := ScrollContainer.new()
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_SHOW_ALWAYS
+	scroll.custom_minimum_size = Vector2(0, 84)
+	_clip_detail.add_child(scroll)
+	var strip := HBoxContainer.new()
+	strip.add_theme_constant_override("separation", 2)
+	scroll.add_child(strip)
+	var group := ButtonGroup.new()
+	var total := maxi(cd.length_ticks, cd.ticks.keys().max() + 1 if not cd.ticks.is_empty() else 0)
+	for tick in total:
+		var cell := Button.new()
+		cell.toggle_mode = true
+		cell.button_group = group
+		cell.custom_minimum_size = Vector2(44, 64)
+		var cnt: int = cd.ticks.get(tick, []).size()
+		cell.text = ("%d\n·%d" % [tick % 10, cnt]) if cnt > 0 else str(tick % 10)
+		cell.tooltip_text = "第 %d tick（%.1f秒）：%s" % [tick, tick / 10.0,
+			"、".join(PackedStringArray(cd.ticks.get(tick, []))) if cnt > 0 else "（空）"]
+		cell.button_pressed = (tick == _clip_sel_tick)
+		cell.pressed.connect(func():
+			_clip_sel_tick = tick
+			_refresh_clip_detail())
+		strip.add_child(cell)
+	## 选中 tick 编辑器
+	var edit := VBoxContainer.new()
+	_clip_detail.add_child(edit)
+	if _clip_sel_tick < 0:
+		var tip2 := Label.new()
+		tip2.text = "点击上方帧格选中一个 0.1秒 tick，然后安放弹幕事件（可多个）。"
+		edit.add_child(tip2)
+		return
+	var sel_l := Label.new()
+	sel_l.text = "第 %d tick（%.1f秒）安放：" % [_clip_sel_tick, _clip_sel_tick / 10.0]
+	edit.add_child(sel_l)
+	for ev_name in cd.ticks.get(_clip_sel_tick, []):
+		var row := HBoxContainer.new()
+		edit.add_child(row)
+		var l := Label.new()
+		l.text = "  ▸ " + str(ev_name)
+		l.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		row.add_child(l)
+		var del := Button.new()
+		del.text = "移除"
+		del.pressed.connect(func():
+			var arr: Array = cd.ticks.get(_clip_sel_tick, [])
+			arr.erase(ev_name)
+			cd.set_events(_clip_sel_tick, arr)
+			_refresh_clip_detail())
+		row.add_child(del)
+	var add := HBoxContainer.new()
+	edit.add_child(add)
+	var ev_o := OptionButton.new()
+	for ev in events:
+		ev_o.add_item(ev.event_name)
+		ev_o.set_item_metadata(ev_o.item_count - 1, ev.event_name)
+	add.add_child(ev_o)
+	var addb := Button.new()
+	addb.text = "安放到该 tick"
+	addb.pressed.connect(func():
+		if ev_o.selected >= 0:
+			cd.add_event(_clip_sel_tick, String(ev_o.get_item_metadata(ev_o.selected)))
+			_refresh_clip_detail())
+	add.add_child(addb)
+	var clear_b := Button.new()
+	clear_b.text = "清空该 tick"
+	clear_b.pressed.connect(func():
+		cd.set_events(_clip_sel_tick, [])
+		_refresh_clip_detail())
+	add.add_child(clear_b)
 
 func _build_timeline_page() -> Control:
 	var split := HSplitContainer.new()
