@@ -16,6 +16,16 @@ var zoom := 1.0
 var ev: DanmakuEventData = null
 var bullets: Array = []
 var _pend: Array = [] ## 旋转重复延时副本 {at, ang, rid, frames}
+## 【m87 片段/符卡预览（作者 20261118）】clip=按住 Z 循环释放；spell=Z 释放
+## 符卡（steps_start 的 playclips 一次播放/loopclips 持续循环——scheme 1124-1126）
+var clip: ClipData = null
+var spell: SpellData = null
+var _z_held := false
+var _clip_pend: Array = [] ## 片段内延时条目 {frames, ev}
+var _clip_playing := false
+var _clip_cycle := 0
+var _loop_clip: ClipData = null
+var _loop_acc := 0
 var char_pos := Vector2(200, 250)
 var frame := 0
 var _mm_cache: Dictionary = {}
@@ -61,15 +71,72 @@ func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventKey and event.pressed and not event.echo:
 		match event.keycode:
 			KEY_Z:
+				_z_held = true
 				fire_once()
 			KEY_ESCAPE:
 				get_window().queue_free()
+	elif event is InputEventKey and not event.pressed and event.keycode == KEY_Z:
+		_z_held = false ## 【m87】按住循环检测需要释放沿
 
 func set_event(e: DanmakuEventData) -> void:
 	ev = e
 	for b in bullets.duplicate():
 		bullets.erase(b)
 	queue_redraw()
+
+## 【m87】片段预览：按住 Z 循环释放（一轮播完仍按住=再播）
+func set_clip(c: ClipData) -> void:
+	clip = c
+	spell = null
+	_loop_clip = null
+	_clip_playing = false
+	for b in bullets.duplicate():
+		bullets.erase(b)
+	queue_redraw()
+
+## 【m87】符卡预览：Z 释放（steps_start 里 playclips 一次/loopclips 循环）
+func set_spell(sp: SpellData) -> void:
+	spell = sp
+	clip = null
+	for b in bullets.duplicate():
+		bullets.erase(b)
+	queue_redraw()
+
+func _resolve_ev_any(n: String) -> DanmakuEventData:
+	return GameGlobals.get_event(n)
+
+func _clip_cycle_len(c: ClipData) -> int:
+	var mx := c.length_ticks
+	for k in c.ticks.keys():
+		mx = maxi(mx, int(k) + 1)
+	return maxi(6, mx * 6)
+
+func _play_clip(c: ClipData) -> void:
+	var at := char_pos + Vector2(0, -8)
+	for ent in c.flat_entries():
+		var e2 := _resolve_ev_any(String(ent["name"]))
+		if e2 == null:
+			continue
+		if int(ent["tick"]) == 0:
+			fire_once_at(at, e2)
+		else:
+			_clip_pend.append({"frames": int(ent["tick"]) * 6, "ev": e2})
+
+func _run_spell_steps() -> void:
+	if spell == null:
+		return
+	for st in spell.steps_start:
+		var op := String(st.get("op", ""))
+		if op == "playclips" or op == "loopclips":
+			var cd: ClipData = THXKit.resolve_clip(String(st.get("arg", "")).strip_edges())
+			if cd == null:
+				continue
+			if op == "playclips":
+				_play_clip(cd)
+			else:
+				_loop_clip = cd
+				_loop_acc = 0
+				_play_clip(cd) ## 首轮立即起播
 
 const MAX_PREVIEW_BULLETS := 2000 ## 【22b 20261030】预览弹上限（超出移除最旧；
 ## 预览=看形状非对局——战场 cap 6000 在预览会 6000×12µs≈72ms/帧=physics 81ms 卡顿源）
@@ -79,6 +146,32 @@ func _physics_process(_delta: float) -> void:
 	while bullets.size() > MAX_PREVIEW_BULLETS:
 		bullets.pop_front()
 	var dt := 1.0
+	## 【m87】片段内延时条目
+	for i in range(_clip_pend.size() - 1, -1, -1):
+		var ce: Dictionary = _clip_pend[i]
+		ce["frames"] = int(ce["frames"]) - 1
+		if int(ce["frames"]) <= 0:
+			fire_once_at(char_pos + Vector2(0, -8), ce["ev"])
+			_clip_pend.remove_at(i)
+	## 【m87】loopclips 持续循环（符卡预览）
+	if _loop_clip != null:
+		_loop_acc += 1
+		if _loop_acc >= _clip_cycle_len(_loop_clip):
+			_loop_acc = 0
+			_play_clip(_loop_clip)
+	## 【m87】片段预览按住 Z 循环（一轮播完仍按住=再播；松开=本轮播完即停）
+	if clip != null and _z_held and not _clip_playing:
+		_clip_playing = true
+		_clip_cycle = 0
+		_play_clip(clip)
+	if _clip_playing:
+		_clip_cycle += 1
+		if _clip_cycle >= _clip_cycle_len(clip):
+			if _z_held:
+				_clip_cycle = 0
+				_play_clip(clip)
+			else:
+				_clip_playing = false
 	for i in range(_pend.size() - 1, -1, -1):
 		var pr: Dictionary = _pend[i]
 		pr["frames"] = int(pr["frames"]) - 1

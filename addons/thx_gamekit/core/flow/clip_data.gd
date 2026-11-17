@@ -11,8 +11,12 @@ extends RefCounted
 ## =============================================================
 
 var clip_name := "untitled_clip"
-var length_ticks := 1 ## 片段长度（tick；>=角色 Cd 最低长度）
+var length_ticks := 1 ## 片段长度（tick；上限 256——作者 20261118：更长交给章节剪辑）
 var ticks := {}       ## int tick -> Array[String 事件名]（升序求值）
+## 【m87 资源管理（scheme #资源管理/冷知识）】分组标签（legacy=THX75 原有片段
+## 打包组；空=未分组）。完整"多 csv 文件+目录树"资源分组=资源管理大功能
+## （后续版本），本字段先行占位——列表按此分组显示、CSV 第 4 列持久化
+var group := ""
 
 ## 按 tick 升序展开为 [{tick:int, name:String}]
 ## （length_ticks=**最低长度**——只约束火力点节拍对齐，不截断事件）
@@ -59,7 +63,7 @@ static func _parse_cell(cell: String) -> Dictionary:
 		return out
 	return {}
 
-## danmaku_clip.csv 解析（header=clip_name,length,ticks）
+## danmaku_clip.csv 解析（header=clip_name,length,ticks[,group]——3 列旧文件兼容）
 static func parse_csv(text: String) -> Array:
 	var out: Array = []
 	for raw in text.split("\n", false):
@@ -71,19 +75,21 @@ static func parse_csv(text: String) -> Array:
 			continue
 		var cd := ClipData.new()
 		cd.clip_name = cells[0]
-		cd.length_ticks = maxi(1, int(cells[1].to_float()))
+		cd.length_ticks = clampi(int(cells[1].to_float()), 1, 256) ## 【m87】上限 256
 		cd.ticks = _parse_cell(cells[2])
+		if cells.size() >= 4:
+			cd.group = cells[3].strip_edges()
 		out.append(cd)
 	return out
 
 func to_csv_row() -> String:
-	## 三列：名/长度/ticks(JSON)——只有 JSON 格含逗号需引号包裹（RFC4180 双写）
+	## 四列：名/长度/ticks(JSON)/分组——JSON 格含逗号需引号包裹（RFC4180 双写）
 	var j := _cell_json(ticks)
-	return "%s,%d,\"%s\"" % [clip_name, length_ticks, j.replace("\"", "\"\"")]
+	return "%s,%d,\"%s\",%s" % [clip_name, length_ticks, j.replace("\"", "\"\""), group]
 
 ## danmaku_clip.csv 全文（表头+逐行）——编辑器包保存/导出官方数据用
 static func save_csv(clips: Array) -> String:
-	var lines: Array[String] = ["clip_name,length,ticks"]
+	var lines: Array[String] = ["clip_name,length,ticks,group"]
 	for c in clips:
 		lines.append((c as ClipData).to_csv_row())
 	return "\n".join(lines) + "\n"

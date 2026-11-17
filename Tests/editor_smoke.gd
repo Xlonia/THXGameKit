@@ -14,6 +14,12 @@ func _ready() -> void:
 	var ok1: bool = is_instance_valid(ed) and GameGlobals.editor_events.size() > 0 ## 断言走 GameGlobals（kit=委托THXKit / th75=宿主自有——编辑器真实工作集）
 	print("  %s 编辑器实例化+事件装载（工作集 %d 件）" % ["PASS" if ok1 else "FAIL", GameGlobals.editor_events.size()])
 	if not ok1: fails += 1
+	## 【m86 片段页】构建+工作集自建（clip_1 兜底）
+	ed._show_main_page("clip")
+	var ok1b: bool = ed._pages.has("clip") and ed._pages["clip"].get_child_count() > 0 \
+		and GameGlobals.editor_clips.size() > 0
+	print("  %s 片段页构建（工作集 %d 片段）" % ["PASS" if ok1b else "FAIL", GameGlobals.editor_clips.size()])
+	if not ok1b: fails += 1
 	ed.queue_free()
 	await get_tree().process_frame
 	## ②试炼场出弹
@@ -35,6 +41,16 @@ func _ready() -> void:
 	ed2.set_script(load(THXKit.kpath("res://addons/thx_gamekit/editor/danmaku_editor.gd")))
 	add_child(ed2)
 	await get_tree().process_frame
+	## 【m86】播种符卡+片段（空池环境下包内无内容可恢复——断言需有源）
+	var sp_seed := SpellData.new()
+	sp_seed.spell_name = "smoke_spell"
+	sp_seed.steps_tick = [{"op": "clean", "arg": "", "params": "inspellrange"}]
+	GameGlobals.editor_spells = [sp_seed]
+	var cl_seed := ClipData.new()
+	cl_seed.clip_name = "smoke_clip"
+	cl_seed.length_ticks = 4
+	cl_seed.add_event(0, "demo_youshio1")
+	GameGlobals.editor_clips = [cl_seed]
 	ed2._save_package("user://kit_sig.thxe", "thxe")
 	var ok3: bool = FileAccess.file_exists("user://kit_sig.thxe")
 	print("  %s .thxe 保存（签名清单内嵌）" % ["PASS" if ok3 else "FAIL"])
@@ -42,6 +58,11 @@ func _ready() -> void:
 	var ok4a: bool = ed2._load_package("user://kit_sig.thxe")
 	print("  %s .thxe 完整性校验通过装载" % ["PASS" if ok4a else "FAIL"])
 	if not ok4a: fails += 1
+	## 【m86】包往返：danmaku_clip.csv + spell.csv（恢复缺口修复）随包恢复
+	var ok4b: bool = GameGlobals.editor_clips.size() > 0 and GameGlobals.editor_spells.size() > 0
+	print("  %s 片段+符卡随包恢复（片段 %d / 符卡 %d）" % ["PASS" if ok4b else "FAIL",
+		GameGlobals.editor_clips.size(), GameGlobals.editor_spells.size()])
+	if not ok4b: fails += 1
 	## 篡改：重写 manifest → 必须拒载
 	var zr := ZIPReader.new()
 	zr.open("user://kit_sig.thxe")

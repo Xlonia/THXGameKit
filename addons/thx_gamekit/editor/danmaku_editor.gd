@@ -2799,6 +2799,9 @@ const FLOW_OPS := {
 	"inversep": {"arg": "", "params": "ev:demo_aimed"},
 	"revolt": {"arg": "", "params": "sel:shape=circle,r=120"},
 	"inheritdamage": {"arg": "", "params": "ev:demo_aimed"},
+	## 【m87 scheme 1124-1126】片段播放（arg=片段名；loopclips=循环至符卡结束）
+	"playclips": {"arg": "clip_1", "params": ""},
+	"loopclips": {"arg": "clip_1", "params": ""},
 }
 
 ## 伪节点图区块：步骤节点列表（每步=键名/名称/参数/排序/删除/复制）
@@ -2910,7 +2913,7 @@ func _build_spell_page() -> Control:
 	left.add_child(_spell_list)
 	var btns := HBoxContainer.new()
 	left.add_child(btns)
-	for t in ["新建", "删除"]:
+	for t in ["新建", "删除", "预览释放"]:
 		var b := Button.new()
 		b.text = t
 		b.pressed.connect(_on_spell_btn.bind(t))
@@ -2948,6 +2951,12 @@ func _on_spell_btn(t: String) -> void:
 				GameGlobals.editor_spells.remove_at(_spell_sel)
 				_spell_sel = -1
 				_refresh_spell_list()
+		"预览释放":
+			## 【m87 符卡预览同步】Z 释放=steps_start（playclips 一次/loopclips 循环）
+			if _spell_sel < 0 or _spell_sel >= GameGlobals.editor_spells.size():
+				_set_status("符卡预览：请先在左侧选择一个符卡")
+				return
+			_open_preview_for_spell(GameGlobals.editor_spells[_spell_sel])
 
 func _refresh_spell_detail() -> void:
 	for c in _spell_detail.get_children():
@@ -2994,7 +3003,7 @@ func _build_clip_page() -> Control:
 	left.add_child(_clip_list)
 	var btns := HBoxContainer.new()
 	left.add_child(btns)
-	for t in ["新建", "删除"]:
+	for t in ["新建", "删除", "预览(按住Z循环)"]:
 		var b := Button.new()
 		b.text = t
 		b.pressed.connect(_on_clip_btn.bind(t))
@@ -3007,12 +3016,18 @@ func _build_clip_page() -> Control:
 
 func _refresh_clip_list() -> void:
 	if GameGlobals.editor_clips.is_empty():
-		var cd := ClipData.new()
-		cd.clip_name = "clip_1"
-		GameGlobals.editor_clips.append(cd)
+		## 【m87】部署片段先入工作集（已迁移片段在片段页可见可编辑——作者令）
+		if not THXKit.clips.is_empty():
+			GameGlobals.editor_clips = THXKit.clips.values()
+		else:
+			var cd := ClipData.new()
+			cd.clip_name = "clip_1"
+			GameGlobals.editor_clips.append(cd)
 	_clip_list.clear()
 	for cd in GameGlobals.editor_clips:
-		_clip_list.add_item("%s [%d tick %d事件]" % [cd.clip_name, cd.length_ticks, cd.ticks.size()])
+		## 【m87 资源管理】分组前缀（legacy=THX75 原有片段打包组——scheme 冷知识）
+		var gp := ("[%s] " % cd.group) if cd.group != "" else "[未分组] "
+		_clip_list.add_item("%s%s [%d tick %d事件]" % [gp, cd.clip_name, cd.length_ticks, cd.ticks.size()])
 	if _clip_sel < 0 or _clip_sel >= GameGlobals.editor_clips.size():
 		_clip_sel = 0
 	_clip_list.select(_clip_sel)
@@ -3031,6 +3046,12 @@ func _on_clip_btn(t: String) -> void:
 				GameGlobals.editor_clips.remove_at(_clip_sel)
 				_clip_sel = -1
 				_refresh_clip_list()
+		"预览(按住Z循环)":
+			## 【m87 片段预览】按住 Z 循环释放（作者原话）；复用既有浮窗
+			if _clip_sel < 0 or _clip_sel >= GameGlobals.editor_clips.size():
+				_set_status("片段预览：请先在左侧选择一个片段")
+				return
+			_open_preview_for_clip(GameGlobals.editor_clips[_clip_sel])
 
 func _refresh_clip_detail() -> void:
 	for c in _clip_detail.get_children():
@@ -3048,13 +3069,13 @@ func _refresh_clip_detail() -> void:
 	meta.add_child(nm)
 	var len_s := SpinBox.new()
 	len_s.min_value = 1
-	len_s.max_value = 600
+	len_s.max_value = 256 ## 【m87 作者裁定】上限 256（更长交给章节剪辑—— scheme 章节剪辑）
 	len_s.value = cd.length_ticks
 	len_s.prefix = "最低长度(0.1s) "
 	len_s.value_changed.connect(func(v): cd.length_ticks = int(v))
 	meta.add_child(len_s)
 	var tip := Label.new()
-	tip.text = "弹幕片段=可安放数个弹幕事件的时间轴（0.1s/tick）。流程：弹幕页做事件 → 此页组片段 → 角色页把片段挂到 main/sub/rest 槽。长度=火力点节拍对齐的最低长度（角色 Cd 类）。随 danmaku_clip.csv 保存/导出。"
+	tip.text = "弹幕片段=可安放数个弹幕事件的时间轴（0.1s/tick）。流程：弹幕页做事件 → 此页组片段 → 角色页把片段挂到 main/sub/rest 槽。长度=火力点节拍对齐的最低长度（角色 Cd 类），上限 256——更长的编排交给章节剪辑。符卡内用 playclips/loopclips 流程播放片段（符卡页伪节点图）。随 danmaku_clip.csv 保存/导出。"
 	tip.add_theme_font_size_override("font_size", 12)
 	tip.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_clip_detail.add_child(tip)
@@ -3128,6 +3149,37 @@ func _refresh_clip_detail() -> void:
 		cd.set_events(_clip_sel_tick, [])
 		_refresh_clip_detail())
 	add.add_child(clear_b)
+
+## 【m87】片段/符卡预览开器（复用既有浮窗——覆盖模式）
+func _open_preview_for_clip(cd: ClipData) -> void:
+	if _preview_window != null and is_instance_valid(_preview_window):
+		var st := _preview_window.get_child(0) if _preview_window.get_child_count() > 0 else null
+		if st != null and st.has_method("set_clip"):
+			st.set_clip(cd)
+			_preview_window.title = "片段预览 — %s（按住Z循环  Esc=关闭）" % cd.clip_name
+			_set_status("片段预览已覆盖为 %s，按住 Z 循环释放" % cd.clip_name)
+			return
+	_open_preview_window() ## 兜底：无浮窗时走事件开器（需选中事件）
+	if _preview_window != null and is_instance_valid(_preview_window):
+		var st2 = _preview_window.get_child(0) if _preview_window.get_child_count() > 0 else null
+		if st2 != null and st2.has_method("set_clip"):
+			st2.set_clip(cd)
+			_preview_window.title = "片段预览 — %s（按住Z循环  Esc=关闭）" % cd.clip_name
+
+func _open_preview_for_spell(sp: SpellData) -> void:
+	if _preview_window != null and is_instance_valid(_preview_window):
+		var st := _preview_window.get_child(0) if _preview_window.get_child_count() > 0 else null
+		if st != null and st.has_method("set_spell"):
+			st.set_spell(sp)
+			_preview_window.title = "符卡预览 — %s（Z=释放  Esc=关闭）" % sp.spell_name
+			_set_status("符卡预览已覆盖为 %s，按 Z 释放（playclips 一次/loopclips 循环）" % sp.spell_name)
+			return
+	_open_preview_window()
+	if _preview_window != null and is_instance_valid(_preview_window):
+		var st2 = _preview_window.get_child(0) if _preview_window.get_child_count() > 0 else null
+		if st2 != null and st2.has_method("set_spell"):
+			st2.set_spell(sp)
+			_preview_window.title = "符卡预览 — %s（Z=释放  Esc=关闭）" % sp.spell_name
 
 func _build_timeline_page() -> Control:
 	var split := HSplitContainer.new()
