@@ -435,7 +435,7 @@ func _build_ui() -> void:
 	left.add_child(_asset_users)
 	_refresh_assets()
 	## 右：三个主页面
-	_pages = { "danmaku": _build_danmaku_page(), "chara": ScrollContainer.new(), "privates": ScrollContainer.new(), "timeline": ScrollContainer.new(), "formation": _build_formation_page() }
+	_pages = { "danmaku": _build_danmaku_page(), "chara": ScrollContainer.new(), "privates": ScrollContainer.new(), "timeline": ScrollContainer.new(), "spell": ScrollContainer.new(), "formation": _build_formation_page() }
 	for k in _pages:
 		_pages[k].size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		_pages[k].size_flags_vertical = Control.SIZE_EXPAND_FILL
@@ -2954,7 +2954,9 @@ func _refresh_tl_list() -> void:
 		GameGlobals.editor_timelines.append(TimelineData.new()) ## 默认示例
 	_tl_list.clear()
 	for tl in GameGlobals.editor_timelines:
-		_tl_list.add_item("%s [%s·%s] %d帧" % [tl.tl_name, tl.owner, tl.slot, tl.ticks.size()])
+		## 【m81 修复（作者内窗口调试报错）】tl.owner 已废除（20261020）——
+		## 访问不存在字段=刷新崩溃=新建按钮"没反应"的元凶
+		_tl_list.add_item("%s [%s] %d帧" % [tl.tl_name, tl.slot, tl.ticks.size()])
 	if _tl_selected < 0 or _tl_selected >= GameGlobals.editor_timelines.size():
 		_tl_selected = 0
 	_tl_list.select(_tl_selected)

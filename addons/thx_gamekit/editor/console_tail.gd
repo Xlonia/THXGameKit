@@ -17,6 +17,8 @@ func _ready() -> void:
 	_rtl.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	_rtl.scroll_following = true
 	_rtl.add_theme_font_size_override("normal_font_size", 12)
+	_rtl.selection_enabled = true ## 【m81 作者 20261117】文字可选中复制（不再 OCR）
+	_rtl.context_menu_enabled = true ## 右键菜单=复制
 	add_child(_rtl)
 	var t := Timer.new()
 	t.wait_time = 0.5

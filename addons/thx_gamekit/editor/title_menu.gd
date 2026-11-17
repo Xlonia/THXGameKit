@@ -77,14 +77,16 @@ func _ready() -> void:
 	foot.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_LEFT)
 	foot.position.y -= 30
 	add_child(foot)
-	## 【m79 内窗口调试（作者 20261117）】版本号上方的调试子窗口入口
-	var dbg_b := Button.new()
-	dbg_b.text = "测试：内窗口调试"
-	dbg_b.focus_mode = Control.FOCUS_NONE
-	dbg_b.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_LEFT)
-	dbg_b.position = Vector2(360, -56)
-	dbg_b.pressed.connect(_open_console_tail)
-	add_child(dbg_b)
+	## 【m81 作者 20261117】内窗口调试仅限编辑调试器环境（OS.has_feature("editor")）
+	## ——导出版/独立标题不显示（测试按钮不污染成品）
+	if OS.has_feature("editor"):
+		var dbg_b := Button.new()
+		dbg_b.text = "测试：内窗口调试"
+		dbg_b.focus_mode = Control.FOCUS_NONE
+		dbg_b.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_LEFT)
+		dbg_b.position = Vector2(360, -56)
+		dbg_b.pressed.connect(_open_console_tail)
+		add_child(dbg_b)
 
 ## —— 背景（占位：作者背景图+背景动画脚本上传后替换本函数）——
 func _build_bg() -> void:
@@ -135,6 +137,28 @@ func _open_panel_msg(title: String, msg: String) -> void:
 ## **完全不受影响**——退出编辑器=关闭那个进程的窗口（零交集零空转）
 ## 与 THX75 的"启动弹幕编辑器.bat"同一模式
 
+## 【m81 Shift+左键】编辑器=内窗口启动（同进程可拖动子窗口——调试环境；
+## 报错/消息直接出现在标题进程控制台）。普通左键=独立进程（性能/稳定优先）
+func _open_editor_embedded() -> void:
+	if _editor_embedded != null and is_instance_valid(_editor_embedded):
+		_editor_embedded.grab_focus()
+		return
+	get_tree().root.gui_embed_subwindows = true
+	var w: Window = Window.new()
+	w.title = "THXGameKit 编辑器（内窗口）"
+	w.size = Vector2i(1280, 800)
+	w.position = Vector2i(80, 60)
+	var ed: Control = (load("res://addons/thx_gamekit/editor/danmaku_editor.gd") as GDScript).new()
+	ed.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	w.add_child(ed)
+	w.close_requested.connect(func():
+		_editor_embedded = null
+		w.queue_free())
+	add_child(w) ## 标题窗口内嵌=控制台消息直接可见
+	_editor_embedded = w
+
+var _editor_embedded: Window = null
+
 func _launch_editor_process(open_path := "") -> void:
 	var godot_exe := OS.get_executable_path()
 	var project_dir := ProjectSettings.globalize_path("res://")
@@ -162,7 +186,12 @@ func _on_menu(id: String) -> void:
 		"playthxe":
 			_open_thxe_dialog()
 		"editor":
-			_launch_editor_process() ## 【m47 rebase 事故恢复】editor 分支被冲突吞掉=点编辑器丝毫无反应
+			## 【m81 作者 20261117】Shift+左键=内窗口启动（同进程可拖动子窗口，
+			## 调试方便+消息直接在标题进程控制台可见）；普通左键=独立进程
+			if Input.is_physical_key_pressed(KEY_SHIFT):
+				_open_editor_embedded()
+			else:
+				_launch_editor_process() ## 【m47 rebase 事故恢复】editor 分支被冲突吞掉=点编辑器丝毫无反应
 		"docs":
 			_open_docs()
 		"options":
