@@ -28,8 +28,8 @@ static func select(bullets: Array, anchor: Vector2, sel: Dictionary) -> Array:
 		if out.size() >= max_n:
 			break
 		var bl: Bullet = b
-		if not bl.alive or bl.hidden_now:
-			continue
+		if not is_instance_valid(bl) or not bl.alive or bl.hidden_now:
+			continue ## 【m74】池语义下数组可能含已释放引用——防御跳过
 		if side_f != -2 and bl.source_side != side_f:
 			continue
 		var dx: float = bl.pos.x - anchor.x
@@ -57,7 +57,7 @@ static func reflex(list: Array) -> int:
 	var n := 0
 	for b in list:
 		var bl: Bullet = b
-		if not bl.alive:
+		if not is_instance_valid(bl) or not bl.alive:
 			continue
 		var sp: float = bl.cur_speed()
 		var d: Vector2 = bl.cur_dir()
@@ -79,7 +79,7 @@ static func inherit_damage(list: Array, ref_ev: DanmakuEventData) -> int:
 	var n := 0
 	for b in list:
 		var bl: Bullet = b
-		if not bl.alive:
+		if not is_instance_valid(bl) or not bl.alive:
 			continue
 		bl.damage_override = dmg
 		n += 1
@@ -92,7 +92,7 @@ static func inverse(list: Array, new_ev: DanmakuEventData) -> int:
 	var n := 0
 	for b in list:
 		var bl: Bullet = b
-		if not bl.alive:
+		if not is_instance_valid(bl) or not bl.alive:
 			continue
 		bl.ev = new_ev
 		bl.tex = DanmakuTex.resolve(new_ev.texture)

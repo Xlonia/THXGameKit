@@ -29,6 +29,18 @@ const CONTENT_KINDS := [
 const VERSION_TEXT := "THXGameKit 内核 v0.1.0（随 TH75 v0.0.9 开发）｜MIT License"
 
 var _panel: PanelContainer = null ## 当前弹出面板（同类互斥）
+var _console_tail: Window = null ## 【m79】内窗口调试（编辑器日志继承）
+
+func _open_console_tail() -> void:
+	if _console_tail != null and is_instance_valid(_console_tail):
+		_console_tail.grab_focus()
+		return
+	get_tree().root.gui_embed_subwindows = true ## 内嵌=作者要的可拖动子窗口形态
+	var w: Window = load("res://addons/thx_gamekit/editor/console_tail.gd").new()
+	w.log_path = ProjectSettings.globalize_path("user://thx_gamekit/editor_console.log")
+	w.position = Vector2i(120, 120)
+	add_child(w)
+	_console_tail = w
 
 func _ready() -> void:
 	_build_bg()
@@ -65,6 +77,14 @@ func _ready() -> void:
 	foot.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_LEFT)
 	foot.position.y -= 30
 	add_child(foot)
+	## 【m79 内窗口调试（作者 20261117）】版本号上方的调试子窗口入口
+	var dbg_b := Button.new()
+	dbg_b.text = "测试：内窗口调试"
+	dbg_b.focus_mode = Control.FOCUS_NONE
+	dbg_b.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_LEFT)
+	dbg_b.position = Vector2(360, -56)
+	dbg_b.pressed.connect(_open_console_tail)
+	add_child(dbg_b)
 
 ## —— 背景（占位：作者背景图+背景动画脚本上传后替换本函数）——
 func _build_bg() -> void:
@@ -119,6 +139,12 @@ func _launch_editor_process(open_path := "") -> void:
 	var godot_exe := OS.get_executable_path()
 	var project_dir := ProjectSettings.globalize_path("res://")
 	var args := PackedStringArray(["--path", project_dir, "res://scenes/danmaku_editor.tscn"])
+	## 【m79 内窗口调试（作者 20261117）】编辑器进程控制台/报错落盘——
+	## 标题画面的「内窗口调试」轮询该文件继承全部消息与报错
+	var log_abs := ProjectSettings.globalize_path("user://thx_gamekit/editor_console.log")
+	DirAccess.make_dir_recursive_absolute(log_abs.get_base_dir())
+	args.append("--log-file")
+	args.append(log_abs)
 	if open_path != "":
 		args.append("--") ## 【继续按钮 20261114】-- 之后=用户参数：编辑器 _ready 解析并自动载入该工程
 		args.append(open_path)
