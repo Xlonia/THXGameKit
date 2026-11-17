@@ -228,6 +228,7 @@ func setup(event: DanmakuEventData, spawn_origin: Vector2, bullet_side: int, src
 	tex = DanmakuTex.resolve(ev.texture)
 	tex_half = DanmakuTex.half_size(tex)
 	draw_radius = tex_half * ev.danmaku_size_muti
+	apply_lod(self) ## 【m82 LOD】材质尺寸分级封顶（≤32px 材质不受影响）
 	## 【0.0.9·③】偏心中心：定值求值（数字/常量式→静态跳过；表达式求值一次定格）
 	spin_offset = Vector2(ev.eval_num_global("spin_x", 0.0), ev.eval_num_global("spin_y", 0.0))
 	## 【判定盒独立于偏心 20261112】旧版挂在 spin_offset != ZERO 分支下——
@@ -316,6 +317,7 @@ func setup(event: DanmakuEventData, spawn_origin: Vector2, bullet_side: int, src
 	range_now = float(spnow["range"])
 	alarm_now = float(spnow.get("alarm", ev.alarm))
 	draw_radius = tex_half * size_mul
+	apply_lod(self) ## 【m82 LOD】出生参数求值后同样封顶
 	var rpnow: Dictionary = ev.eval_repeat_params(s_ctx0)
 	repeat_time_now = int(rpnow["time"])
 	repeat_freq_now = int(rpnow["freq"])
@@ -462,6 +464,27 @@ var _lf_phase := 0 ## 【审计#39】low_freq 相位（setup 随机 0-5）
 var _bulk_skip := false ## 【22b 20261101】批量运动学弹：本帧 _step_regular 跳过
 var tex_slot := 0
 var _alive_frames := 0.0 ## 【0.0.9】副本存活帧（range 判定用；与事件年龄 t 解耦）
+
+## 【m82 LOD（作者 20261117 定义：材质原始尺寸分级驱动绘制尺寸）】
+## 键=材质最长边像素；值=绘制直径上限（px，含 size_muti）。≤32=不封顶
+## （主流小弹 16×16 完全不受影响）；大图弹封顶=省填充率（1400+弹渲染
+## 炸点的主要成本）。开发者建议：减少大图弹幕素材引用（策划案纹理规格：
+## 2 的整数次方正方形或单像素宽）。
+const LOD_DRAW_CAPS := {32: 0, 64: 64, 128: 128, 256: 192, 4096: 256}
+
+static func lod_cap(tex_long: int) -> float:
+	var cap := 0.0
+	for k in LOD_DRAW_CAPS:
+		if tex_long <= int(k):
+			var v: int = LOD_DRAW_CAPS[k]
+			cap = float(v) if v > 0 else 0.0
+			break
+	return cap
+
+static func apply_lod(bl: Bullet) -> void:
+	var cap := lod_cap(maxi(bl.tex_half * 2, 1))
+	if cap > 0.0:
+		bl.draw_radius = minf(bl.draw_radius, cap * 0.5)
 var _prev_pos := Vector2.INF ## 【0.0.9·He 加速度】上一帧位置 ## 【22b 20261102·修4】DDM 形状贴合：弹幕纹理槽 id（world 分配）
 
 ## 【22b 20261103·去跟踪化（作者裁定）】track_speed/track_dir 是独立状态
