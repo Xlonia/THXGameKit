@@ -151,7 +151,9 @@ static func _extreme(arena, caster, top: bool):
 
 ## 命题过滤（DanmakuExpr 同一引擎——iterate 系通用容器查询）
 static func _filter_prop(pool: Array, prop: String, caster) -> Array:
-	var p := prop.strip_edges()
+	## 【m95】作者伪脚本约定：>>=大于、<<=小于（文档管线转义习惯——GDScript
+	## Expression 中它们是移位符，定位器命题里恒为比较语义）
+	var p := prop.strip_edges().replace(">>", ">").replace("<<", "<")
 	if p == "":
 		return pool
 	var ex := DanmakuExpr.new()
