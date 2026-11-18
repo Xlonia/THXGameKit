@@ -668,6 +668,31 @@ func _build_probe_page() -> Control:
 	tip.text = "探针面板（③-C）：编辑模式调试数据一览——切到本页即刷新。"
 	tip.add_theme_font_size_override("font_size", 12)
 	box.add_child(tip)
+	## 【m91 探针开关（作者令：给所有探针提供开关，下次启动后生效）】
+	## 写入 scenario_cfg 并立即落盘 thx_kernel_cfg.json——游戏侧启动读取
+	var probe_tip := Label.new()
+	probe_tip.text = "运行探针开关（勾选=下次启动后开启）："
+	probe_tip.add_theme_font_size_override("font_size", 13)
+	box.add_child(probe_tip)
+	for spec in [["probe_draw_timing", "绘制层计时（painter µs 计时）", true],
+		["probe_heat_stats", "热力图统计控制台输出（[Heatmap] 行）", false]]:
+		var pr := HBoxContainer.new()
+		box.add_child(pr)
+		var cb := CheckBox.new()
+		cb.button_pressed = bool(THXKit.scenario_cfg.get(spec[0], spec[2]))
+		cb.text = spec[1]
+		cb.toggled.connect(func(on: bool):
+			THXKit.scenario_cfg[spec[0]] = on
+			var cf := FileAccess.open("res://gameAssetBase/thx_kernel_cfg.json", FileAccess.WRITE)
+			if cf != null:
+				cf.store_string(JSON.stringify(THXKit.scenario_cfg, "  "))
+				cf.close()
+				_set_status("探针 %s=%s 已落盘（下次启动生效）" % [spec[0], "开" if on else "关"])
+			else:
+				_set_status("探针开关写盘失败（res:// 只读环境）"))
+		pr.add_child(cb)
+	var sep := HSeparator.new()
+	box.add_child(sep)
 	var out := Label.new()
 	out.name = "ProbeOut"
 	out.text = "（待刷新）"
@@ -1969,6 +1994,25 @@ func _load_official_csv() -> void:
 		ev.compile()
 
 ## 导出官方数据：按运行方式写五份分表（每表只含本类；旧单文件不再写）
+## 【m91 合并落盘助手】现有部署行打底+工作项覆盖同名→写回（片段/符卡共用；
+    ## 空/未访问工作集不再清空部署数据——m89 事故的通用解）
+func _merge_deploy_flow(path: String, parse_fn: Callable, save_fn: Callable, work: Array, name_of: Callable) -> void:
+	var merged := {}
+	if FileAccess.file_exists(path):
+		for it in parse_fn.call(FileAccess.get_file_as_string(path)):
+			merged[name_of.call(it)] = it
+	for it in work:
+		merged[name_of.call(it)] = it
+	var f := FileAccess.open(path, FileAccess.WRITE)
+	if f != null:
+		f.store_string(save_fn.call(merged.values()))
+		f.close()
+
+func _deploy_base_dir() -> String:
+	if GameGlobals.OFFICIAL_EVENT_CSVS.is_empty():
+		return ""
+	return String(GameGlobals.OFFICIAL_EVENT_CSVS.values()[0]).get_base_dir()
+
 func _on_export_official() -> void:
 	_draft_stash() ## 【draft 20261025d】导出前暂存修改前内容
 	_collect_form()
@@ -1990,35 +2034,19 @@ func _on_export_official() -> void:
 	## 覆盖部署文件=13 片段被清空）】导出=现有部署行打底+工作集覆盖同名——
 	## 未访问页面/空工作集不再清空部署数据。spell.csv 同法（工作集符卡落盘）。
 	if not GameGlobals.OFFICIAL_EVENT_CSVS.is_empty():
-		var base: String = String(GameGlobals.OFFICIAL_EVENT_CSVS.values()[0]).get_base_dir()
-		## —— 片段合并导出 ——
-		var clip_merged := {}
-		var clip_path := base.path_join("danmaku_clip.csv")
-		if FileAccess.file_exists(clip_path):
-			for cd0 in ClipData.parse_csv(FileAccess.get_file_as_string(clip_path)):
-				clip_merged[cd0.clip_name] = cd0
-		for cd1 in GameGlobals.editor_clips:
-			clip_merged[cd1.clip_name] = cd1
-		var cf := FileAccess.open(clip_path, FileAccess.WRITE)
-		if cf != null:
-			cf.store_string(ClipData.save_csv(clip_merged.values()))
-			cf.close()
-			for cd2 in GameGlobals.editor_clips:
-				THXKit.clips[cd2.clip_name] = cd2
-		## —— 符卡合并导出（m89：作者在符卡页新建的符卡可落盘部署）——
-		var spell_merged := {}
-		var spell_path := base.path_join("spell.csv")
-		if FileAccess.file_exists(spell_path):
-			for sp0 in SpellData.parse_csv(FileAccess.get_file_as_string(spell_path)):
-				spell_merged[sp0.spell_name] = sp0
-		for sp1 in GameGlobals.editor_spells:
-			spell_merged[sp1.spell_name] = sp1
-		var sf := FileAccess.open(spell_path, FileAccess.WRITE)
-		if sf != null:
-			sf.store_string(SpellData.save_csv(spell_merged.values()))
-			sf.close()
-			for sp2 in GameGlobals.editor_spells:
-				THXKit.spell_cards[sp2.spell_name] = sp2
+		var base: String = _deploy_base_dir()
+		## —— 片段合并导出（m91 助手化）——
+		_merge_deploy_flow(base.path_join("danmaku_clip.csv"),
+			ClipData.parse_csv, ClipData.save_csv, GameGlobals.editor_clips,
+			func(cd0): return cd0.clip_name)
+		for cd2 in GameGlobals.editor_clips:
+			THXKit.clips[cd2.clip_name] = cd2
+		## —— 符卡合并导出（m91 助手化）——
+		_merge_deploy_flow(base.path_join("spell.csv"),
+			SpellData.parse_csv, SpellData.save_csv, GameGlobals.editor_spells,
+			func(sp0): return sp0.spell_name)
+		for sp2 in GameGlobals.editor_spells:
+			THXKit.spell_cards[sp2.spell_name] = sp2
 	var copied := 0
 	for tex_name in GameGlobals.editor_textures:
 		var src := _texture_cache_path(tex_name)
@@ -2786,8 +2814,24 @@ func _build_chara_page() -> Control:
 					if snm != "" and not cur4.has(snm):
 						cur4.append(snm)
 						edit_row[sp_col] = ";".join(cur4)
+						## 【m91 分配即落盘】符卡写穿部署（工作集/注册表就地合并
+						## 进部署 spell.csv——"新建→分配→对战生效"一步到位，
+						## 作者 xlonia_verses 未落盘=释放无反应的根因闭环）
+						var dep_sp: SpellData = null
+						for dsp in GameGlobals.editor_spells:
+							if dsp.spell_name == snm:
+								dep_sp = dsp
+								break
+						if dep_sp == null:
+							dep_sp = THXKit.spell_cards.get(snm)
+						if dep_sp != null and _deploy_base_dir() != "":
+							_merge_deploy_flow(_deploy_base_dir().path_join("spell.csv"),
+								SpellData.parse_csv, SpellData.save_csv, [dep_sp],
+								func(dsp2): return dsp2.spell_name)
+							THXKit.spell_cards[snm] = dep_sp
 						if CharaDB.save_row(cname, edit_row):
-							_set_status("已分配符卡 %s → %s（%s）并写入 Characters.csv" % [snm, cname, sp_col])
+							_set_status("已分配符卡 %s → %s（%s）并写入 Characters.csv%s" % [snm, cname, sp_col,
+								"+已落盘 spell.csv" if dep_sp != null else ""])
 						else:
 							_set_status("写盘失败：%s" % cname)
 						_chara_render.call())
@@ -2886,6 +2930,19 @@ func _build_chara_page() -> Control:
 
 ## =============================================================
 ## 【m75 伪节点图元件】op→默认参数（添加流程=识别名称自动填写文本框）
+## 【m91 符卡页流程工具（作者令：像弹幕那个工具一样，范围=符卡侧）】
+const FLOW_OP_DESC := {
+	"svgresign": "注册矢量图形（空=默认圆形），存活至符卡结束；作为消弹域/选择器。参数：序号=0",
+	"clean": "每事件帧消弹：svg 范围内敌方弹幕清除（10Hz）。参数：inspellrange（留空=注册图形范围）",
+	"reflex": "反射：弹幕原速反向（冻结兼容 C++）。选择器留空=全场敌对弹",
+	"inverse": "替换弹幕实体为指定事件（保持位置/归属侧不变）。必须给 ev:事件名",
+	"inversep": "替换为指定事件起点：原弹销毁+新事件以当前位置重生。必须给 ev:事件名",
+	"revolt": "策反：弹幕归属改为本方并冻结指向敌侧随机角色。选择器留空=全场敌对弹",
+	"inheritdamage": "伤害继承：所选弹幕继承指定事件的伤害。必须给 ev:事件名",
+	"playclips": "播放一次独立于章节的弹幕片段。参数（arg）=片段名",
+	"loopclips": "循环播放独立于章节的弹幕片段（至符卡结束）。参数（arg）=片段名",
+}
+
 const FLOW_OPS := {
 	"svgresign": {"arg": "", "params": "序号=0"},
 	"clean": {"arg": "", "params": "inspellrange"},
@@ -3012,7 +3069,7 @@ func _build_spell_page() -> Control:
 	left.add_child(_spell_list)
 	var btns := HBoxContainer.new()
 	left.add_child(btns)
-	for t in ["新建", "删除", "预览释放"]:
+	for t in ["新建", "删除", "预览释放", "流程工具"]:
 		var b := Button.new()
 		b.text = t
 		b.pressed.connect(_on_spell_btn.bind(t))
@@ -3056,6 +3113,76 @@ func _on_spell_btn(t: String) -> void:
 				_set_status("符卡预览：请先在左侧选择一个符卡")
 				return
 			_open_preview_for_spell(GameGlobals.editor_spells[_spell_sel])
+		"流程工具":
+			## 【m91 流程工具（作者令：像弹幕那个工具一样，范围=符卡侧）】
+			## op 库+说明+参数模板+目标触发器选栏+插入
+			_show_flow_tool_popup()
+
+## 【m91 符卡页流程工具】op 库+说明+参数模板+目标触发器（spellstart/fin/tick）
+## 选栏+插入——与弹幕页运算/参数工具同范式，范围=符卡侧
+var _flow_tool_popup: PopupPanel = null
+
+func _show_flow_tool_popup() -> void:
+	if _spell_sel < 0 or _spell_sel >= GameGlobals.editor_spells.size():
+		_set_status("流程工具：请先在左侧选择一个符卡")
+		return
+	if _flow_tool_popup != null:
+		_flow_tool_popup.queue_free()
+	_flow_tool_popup = PopupPanel.new()
+	_dialog_reparent(_flow_tool_popup)
+	var box := VBoxContainer.new()
+	box.custom_minimum_size = Vector2(620, 440)
+	_flow_tool_popup.add_child(box)
+	var head := HBoxContainer.new()
+	box.add_child(head)
+	var tl := Label.new()
+	tl.text = "流程工具（符卡侧）——选中说明后插入到目标触发器"
+	tl.add_theme_font_size_override("font_size", 14)
+	head.add_child(tl)
+	var tgt_o := OptionButton.new()
+	for t in ["spellstart（符卡启动）", "spellfin（符卡结束）", "spelltick（每事件帧）"]:
+		tgt_o.add_item(t)
+	tgt_o.select(0)
+	head.add_child(tgt_o)
+	var list := ItemList.new()
+	list.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	list.custom_minimum_size = Vector2(0, 220)
+	box.add_child(list)
+	var desc := Label.new()
+	desc.text = "（选中一条流程查看说明）"
+	desc.add_theme_font_size_override("font_size", 12)
+	desc.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	desc.custom_minimum_size = Vector2(0, 60)
+	box.add_child(desc)
+	var ops: Array = FLOW_OPS.keys()
+	for op in ops:
+		list.add_item(op)
+	var ins_b := Button.new()
+	ins_b.text = "插入到目标触发器"
+	ins_b.pressed.connect(func():
+		var sp: SpellData = GameGlobals.editor_spells[_spell_sel]
+		var opi: int = list.get_selected_items()
+		var op: String = ""
+		if opi.size() > 0:
+			op = ops[opi[0]]
+		if op == "":
+			return
+		var d: Dictionary = {"op": op, "arg": str(FLOW_OPS[op]["arg"]), "params": str(FLOW_OPS[op]["params"])}
+		match tgt_o.selected:
+			0:
+				sp.steps_start.append(d)
+			1:
+				sp.steps_fin.append(d)
+			_:
+				sp.steps_tick.append(d)
+		_set_status("已插入 %s → %s（参数模板已填，按需修改）" % [op, tgt_o.get_item_text(tgt_o.selected)])
+		_refresh_spell_detail())
+	box.add_child(ins_b)
+	list.item_selected.connect(func(i: int):
+		var op: String = ops[i]
+		desc.text = "%s
+参数模板：%s | %s" % [str(FLOW_OP_DESC.get(op, "")), op, str(FLOW_OPS[op]["params"])])
+	_flow_tool_popup.popup_centered()
 
 func _refresh_spell_detail() -> void:
 	for c in _spell_detail.get_children():
