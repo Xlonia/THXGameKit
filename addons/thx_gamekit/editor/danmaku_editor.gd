@@ -3161,7 +3161,7 @@ func _show_flow_tool_popup() -> void:
 	ins_b.text = "插入到目标触发器"
 	ins_b.pressed.connect(func():
 		var sp: SpellData = GameGlobals.editor_spells[_spell_sel]
-		var opi: int = list.get_selected_items()
+		var opi := list.get_selected_items()
 		var op: String = ""
 		if opi.size() > 0:
 			op = ops[opi[0]]
