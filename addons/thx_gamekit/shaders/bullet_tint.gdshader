@@ -25,6 +25,7 @@ vec3 hsl2rgb(vec3 hsl) {
 
 void fragment() {
 	vec4 tex = texture(TEXTURE, UV);
+	if (tex.a < 0.02) { discard; } // 【m96 审计 P0】alpha 早退：透明边角像素不走 HSL 全流程（填充率线性收益）
 	float l = dot(tex.rgb, vec3(0.299, 0.587, 0.114)); // 纹理亮度=L
 	vec3 hs = rgb2hsv(COLOR.rgb);
 	// 【对比度倍乘 20261026】S>1：rgb 偏离 L 的色彩分量放大（对比拉满）；

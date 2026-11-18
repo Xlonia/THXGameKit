@@ -126,6 +126,12 @@ func _ready() -> void:
 	_load_official_timelines() ## 【m90 主屏 tab 修复（作者：只有少数字幕）】
 	## 场景树页时间轴列表在编辑器态也需要数据源（官方时间轴仅 1-2 文件，
 	## 装载代价极小——m69 的"编辑器态不重装载"门针对批量事件 IO，不涉此时）
+	## 【m92 编辑器态装载 spell/clip（作者 20261118：重启后符卡页看不到
+	## 已部署符卡——classical/xlonia_verses 全部消失）】同 timelines 待遇：
+	## 单文件小表，编辑器页（符卡列表/角色页下拉）须有数据源
+	## 【m96 补提交事故】m92 提交实际漏掉本块（git show --stat 核出=1 文件）
+	load_spells()
+	load_clips()
 	if Engine.is_editor_hint():
 		return
 	## 【m74 修复】下列装载行自 m69 起被误并进 _load_deployed_cfg 函数体
