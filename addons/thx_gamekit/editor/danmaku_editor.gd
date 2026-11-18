@@ -1180,16 +1180,42 @@ func _build_tabs(ev: DanmakuEventData) -> void:
 	var vbox3 := VBoxContainer.new()
 	vbox3.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	page3.add_child(vbox3)
-	var users := _find_users(ev.event_name)
+	var users: Array = _find_users(ev.event_name)
 	if users.is_empty():
 		var l := Label.new()
-		l.text = "好康，是新弹幕吔！未被任何角色/火力槽引用，去拿给少女们玩吧。"
+		l.text = "好康，是新弹幕吔！未被任何角色/火力槽/片段/符卡引用，去拿给少女们玩吧。"
 		vbox3.add_child(l)
 	else:
+		## 【m93 反查目标索引（作者令：双击跳对应编辑界面——通用）】
+		var ul := ItemList.new()
+		ul.custom_minimum_size = Vector2(0, 40 + 26 * users.size())
 		for u in users:
-			var l := Label.new()
-			l.text = u
-			vbox3.add_child(l)
+			ul.add_item(String(u["text"]))
+		ul.item_activated.connect(func(idx: int):
+			if idx < 0 or idx >= users.size():
+				return
+			var u0: Dictionary = users[idx]
+			var kind9: String = String(u0["kind"])
+			var nm9: String = String(u0["name"])
+			if kind9 == "clip":
+				_show_main_page("clip")
+				var ci: int = GameGlobals.editor_clips.find(THXKit.resolve_clip(nm9))
+				if ci >= 0:
+					_clip_sel = ci
+					_refresh_clip_list()
+			elif kind9 == "spell":
+				_show_main_page("spell")
+				var si: int = GameGlobals.editor_spells.find(THXKit.resolve_spell(nm9))
+				if si >= 0:
+					_spell_sel = si
+					_refresh_spell_list()
+			elif kind9 == "chara":
+				_show_main_page("chara"))
+		vbox3.add_child(ul)
+		var tip9 := Label.new()
+		tip9.text = "（双击条目跳转对应编辑界面：片段页/符卡页/角色页）"
+		tip9.add_theme_font_size_override("font_size", 12)
+		vbox3.add_child(tip9)
 	_tabs.add_child(page3)
 
 func _make_form_page(tab_name: String, schema: Array, ev: DanmakuEventData) -> ScrollContainer:
@@ -1241,12 +1267,39 @@ func _find_users(event_name: String) -> Array:
 	var out: Array = []
 	var all: Array = []
 	all.append_array(CharaDB.load_all())
+	## 【m93 片段引用识别（作者令：弹幕被片段继承→显示片段引用而非角色直引）
+	## +条目带跳转元数据 {text, kind, name}——双击跳目标编辑界面（通用索引）】
+	var clip_names := {}
+	for cd0 in GameGlobals.editor_clips:
+		clip_names[cd0.clip_name] = cd0
+	for cn0 in THXKit.clips.keys():
+		clip_names[String(cn0)] = THXKit.clips[cn0]
 	for d in all:
 		for slot in ["main", "sub", "rest"]:
 			var col: String = {"main": "main_evs", "sub": "sub_evs", "rest": "rest_evs"}[slot]
 			for nm in String(d.get(col, "")).split(";", false):
-				if nm.strip_edges() == event_name:
-					out.append("%s → %s 槽" % [d.get("NameZH", d.get("Name", "?")), slot])
+				var ref: String = nm.strip_edges()
+				if clip_names.has(ref):
+					## 引用=片段：该片段的 tick 是否含本事件
+					var cd: ClipData = clip_names[ref]
+					var used := false
+					for k in cd.ticks:
+						if Array(cd.ticks[k]).has(event_name):
+							used = true
+							break
+					if used:
+						out.append({"text": "片段 %s → %s %s 槽（双击跳转）" % [ref, d.get("NameZH", d.get("Name", "?")), slot],
+							"kind": "clip", "name": ref})
+				elif ref == event_name:
+					out.append({"text": "%s → %s 槽（双击跳角色页）" % [d.get("NameZH", d.get("Name", "?")), slot],
+						"kind": "chara", "name": String(d.get("Name", ""))})
+	## 符卡流程引用（inverse/inversep/inheritdamage 的 ev:）
+	for sp0 in GameGlobals.editor_spells:
+		for group in [sp0.steps_start, sp0.steps_fin, sp0.steps_tick]:
+			for st0 in group:
+				if String(st0.get("params", "")).contains("ev:" + event_name) or String(st0.get("arg", "")) == event_name:
+					out.append({"text": "符卡 %s（流程 %s）→ 符卡页（双击跳转）" % [sp0.spell_name, String(st0.get("op", "?"))],
+						"kind": "spell", "name": sp0.spell_name})
 	return out
 
 ## =============================================================
@@ -2933,6 +2986,7 @@ func _build_chara_page() -> Control:
 ## 【m75 伪节点图元件】op→默认参数（添加流程=识别名称自动填写文本框）
 ## 【m91 符卡页流程工具（作者令：像弹幕那个工具一样，范围=符卡侧）】
 const FLOW_OP_DESC := {
+	"danmaku": "在该角色上释放一个弹幕事件并对其目标发射。框1=事件名；框2=目标定位器（空=敌侧随机；closet=最近者/enemies=敌侧全部/random=随机/iterate(命题)=如 iterate(hp>>5)）",
 	"svgresign": "注册矢量图形（空=默认圆形），存活至符卡结束；作为消弹域/选择器。参数：序号=0",
 	"clean": "每事件帧消弹：svg 范围内敌方弹幕清除（10Hz）。参数：inspellrange（留空=注册图形范围）",
 	"reflex": "反射：弹幕原速反向（冻结兼容 C++）。选择器留空=全场敌对弹",
@@ -2942,6 +2996,32 @@ const FLOW_OP_DESC := {
 	"inheritdamage": "伤害继承：所选弹幕继承指定事件的伤害。必须给 ev:事件名",
 	"playclips": "播放一次独立于章节的弹幕片段。参数（arg）=片段名",
 	"loopclips": "循环播放独立于章节的弹幕片段（至符卡结束）。参数（arg）=片段名",
+}
+
+## 【m93 流程参数提示表】op → 框1（参数1）/框2（参数2）占位范式
+const FLOW_ARG_HINT := {
+	"svgresign": "序号（空=默认圆形）",
+	"clean": "",
+	"reflex": "",
+	"inverse": "事件名（替换目标）",
+	"inversep": "事件名（重生事件）",
+	"revolt": "",
+	"inheritdamage": "事件名（伤害来源）",
+	"playclips": "片段名",
+	"loopclips": "片段名",
+	"danmaku": "事件名（释放的弹幕）",
+}
+const FLOW_PARAMS_HINT := {
+	"svgresign": "",
+	"clean": "inspellrange（留空=注册图形范围）",
+	"reflex": "弹幕选择器（留空=全场敌对弹）",
+	"inverse": "弹幕选择器（留空=全场敌对弹）",
+	"inversep": "弹幕选择器（留空=全场敌对弹）",
+	"revolt": "目标定位器（留空=敌侧随机；closet/enemies/random/iterate(hp>>5)）",
+	"inheritdamage": "弹幕选择器（留空=全场敌对弹）",
+	"playclips": "",
+	"loopclips": "",
+	"danmaku": "目标定位器（留空=敌侧随机；closet/enemies/random/iterate(hp>>5)）",
 }
 
 const FLOW_OPS := {
@@ -2955,6 +3035,8 @@ const FLOW_OPS := {
 	## 【m87 scheme 1124-1126】片段播放（arg=片段名；loopclips=循环至符卡结束）
 	"playclips": {"arg": "clip_1", "params": ""},
 	"loopclips": {"arg": "clip_1", "params": ""},
+	## 【m93 角色对弹幕操作①】arg=事件名/params=目标定位器
+	"danmaku": {"arg": "demo_aimed", "params": ""},
 }
 
 ## 伪节点图区块：步骤节点列表（每步=键名/名称/参数/排序/删除/复制）
@@ -2994,16 +3076,21 @@ func _build_steps_editor(title: String, steps: Array, refresh_cb: Callable = Cal
 		kl.text = String(st.get("op", "?"))
 		kl.custom_minimum_size = Vector2(110, 0)
 		row.add_child(kl)
+		## 【m93 横排参数化（作者裁定：两框改语义=框1:参数1/框2:参数2；
+		## placeholder 按 op 给范例——closet 单词直挂/iterate(命题)/ev: 泛型前缀
+		## 等范式进提示，文档同步）】
 		var arg_e := LineEdit.new()
 		arg_e.text = String(st.get("arg", ""))
-		arg_e.custom_minimum_size = Vector2(90, 0)
-		arg_e.placeholder_text = "名称/图形"
+		arg_e.custom_minimum_size = Vector2(130, 0)
+		arg_e.placeholder_text = "参数1: %s" % str(FLOW_ARG_HINT.get(String(st.get("op", "")), "名称"))
+		arg_e.tooltip_text = "参数1（" + str(FLOW_ARG_HINT.get(String(st.get("op", "")), "名称")) + "）"
 		arg_e.text_changed.connect(func(t: String): st["arg"] = t)
 		row.add_child(arg_e)
 		var pm_e := LineEdit.new()
 		pm_e.text = String(st.get("params", ""))
 		pm_e.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		pm_e.placeholder_text = "参数（sel:shape=circle,r=120 / ev:事件名 / 序号=0）"
+		pm_e.placeholder_text = "参数2: %s" % str(FLOW_PARAMS_HINT.get(String(st.get("op", "")), "选择器（留空=全场敌对弹；ev:事件名=替换目标）"))
+		pm_e.tooltip_text = "参数2（" + str(FLOW_PARAMS_HINT.get(String(st.get("op", "")), "选择器")) + "）——目标选择器：closet=最近者（单词直挂）/enemies=敌侧全部/random=随机/iterate(命题)=如 iterate(hp>>5)"
 		pm_e.text_changed.connect(func(t: String): st["params"] = t)
 		row.add_child(pm_e)
 		var up_b := Button.new()
