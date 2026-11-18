@@ -675,7 +675,8 @@ func _build_probe_page() -> Control:
 	probe_tip.add_theme_font_size_override("font_size", 13)
 	box.add_child(probe_tip)
 	for spec in [["probe_draw_timing", "绘制层计时（painter µs 计时）", true],
-		["probe_heat_stats", "热力图统计控制台输出（[Heatmap] 行）", false]]:
+		["probe_heat_stats", "热力图统计控制台输出（[Heatmap] 行）", false],
+		["probe_fam_contour", "族图/等高线 GPU 推进（He/Hd/Hv 期望系——关=AI 深层功能停摆，仅性能定位用）", true]]:
 		var pr := HBoxContainer.new()
 		box.add_child(pr)
 		var cb := CheckBox.new()
@@ -3082,9 +3083,14 @@ func _build_spell_page() -> Control:
 
 func _refresh_spell_list() -> void:
 	if GameGlobals.editor_spells.is_empty():
-		var sp := SpellData.new()
-		sp.spell_name = "spell_1"
-		GameGlobals.editor_spells.append(sp)
+		## 【m92 部署符卡入工作集种子（作者 20261118：classical/xlonia_verses
+		## 重启后符卡页看不到没法编辑）】部署注册表先入（同 m87 片段页范式）
+		if not THXKit.spell_cards.is_empty():
+			GameGlobals.editor_spells = THXKit.spell_cards.values()
+		else:
+			var sp := SpellData.new()
+			sp.spell_name = "spell_1"
+			GameGlobals.editor_spells.append(sp)
 	_spell_list.clear()
 	for sp in GameGlobals.editor_spells:
 		_spell_list.add_item("%s [%d/%d/%d]" % [sp.spell_name,
