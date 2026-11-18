@@ -1,21 +1,23 @@
 class_name EntityOps
 extends RefCounted
 ## =============================================================
-## 【m93 角色定位器（scheme 角色选择器规范化——作者 20261118）】
-## 特殊选择器=单词直挂（closet/nearest=最近者、farthest=最远者、
-## self=施法者、random=随机）；enemies=敌侧全部（消望插件特殊 enemies
-## 同表——新定位器先注册此处，流程/节点图共用）。
-## 参数选择器=iterate(命题)：iterate(hp>>5)=所有 hp>5 的角色
-## （命题上下文=角色参数：x/y/d/hp/allhp/hpper/directc/ap/pp…）。
-## 返回：实体数组（调用方再按需取样——单数取首/复数全用）。
+## 【m94 角色定位器 v2（作者 20261118 三决定）】
+## ①选择器=函数调用式（C++/GDScript 类方法标点）：closest()/farthest()/
+##   upst()/downst()/boss()/player()/self()/random()/enemies() 单词类=括号
+##   直挂；iterate(命题)=特定实体类型满足命题的全部个体；
+##   randomp(命题)=随机个体；geniterate(命题,类型)=跨类型通用查询
+##   （scheme 通用选择器调用节——iterate 系=任何类通用容器查询语义，
+##   对应 GDScript Array.filter/randomize 取样；C++ 无内建，此为内核实现）。
+## ②角色定义变革（作者 20261118）：**角色=队伍成员 5 角色+各自杂兵**；
+##   仅限自机与主要参与弹幕释放/剧情的叫**队伍成员**。
+##   → enemies()/iterate 系默认含杂兵（PRIVATE=Kind.PRIVATE 也参与）。
+## ③命题上下文变量：x/y/d/hp/allhp/hpper/ap/pp（directc 待办）
 ## =============================================================
 
-## 角色参数快照（命题上下文——与 scheme 角色参数对齐）
+## 角色参数快照（命题上下文）
 static func ent_ctx(e, caster) -> Dictionary:
 	var d: float = e.position.distance_to(caster.position) if caster != null else 0.0
 	var hpv: float = float(e.hp[0]) if "hp" in e and e.hp.size() > 0 else 0.0
-	## allhp=三部位血量和（EntityCore 无独立 max 访问器——scheme allhp=当前
-	## 全血量口径；hpper 分母同源=1.0 兜底）
 	var allv: float = 0.0
 	if "hp" in e:
 		for part in e.hp:
@@ -26,72 +28,171 @@ static func ent_ctx(e, caster) -> Dictionary:
 		"ap": float(e.ap), "pp": float(e.pp),
 		"self_x": e.position.x, "self_y": e.position.y}
 
-## 定位器解析（spec=定位器字符串；caster=施法者；arena=战场/提供 entities
-## 与 bullet_nearest_enemy_from 的对象）
+## 定位器解析（spec=定位器表达式；caster=施法者；arena=战场）
+## 返回实体数组（调用方取样：单数取首/复数全用）
 static func resolve(spec: String, caster, arena) -> Array:
 	var s := spec.strip_edges()
 	if s == "":
 		return []
-	var out: Array = []
-	## —— 特殊选择器（单词直挂）——
-	match s.to_lower():
+	## —— 括号函数式（先于单词判定）——
+	var lp := s.find("(")
+	if lp >= 0 and s.ends_with(")"):
+		var fname: String = s.substr(0, lp).strip_edges().to_lower()
+		var inner: String = s.substr(lp + 1, s.length() - lp - 2).strip_edges()
+		match fname:
+			"iterate":
+				return _filter_prop(_all_ents(arena, caster), inner, caster)
+			"randomp":
+				var pool := _filter_prop(_all_ents(arena, caster), inner, caster)
+				return [pool[randi() % pool.size()]] if pool.size() > 0 else []
+			"geniterate":
+				## geniterate(命题,实体类型)——类型=player/member/private/enemy
+				## （全部种类中筛满足命题者，再按类型取样）
+				var argsegs := _split_top(inner)
+				if argsegs.size() < 2:
+					return []
+				var pool2 := _filter_prop(_all_ents(arena, caster), argsegs[0].strip_edges(), caster)
+				var tname: String = argsegs[1].strip_edges().to_lower()
+				var out2: Array = []
+				for e2 in pool2:
+					if _kind_name(e2) == tname:
+						out2.append(e2)
+				return out2
+			_:
+				return []
+	## —— 单词/单词() 类（可带空括号）——
+	var word: String = s.to_lower().trim_suffix("()").strip_edges()
+	match word:
 		"self":
 			return [caster] if caster != null else []
-		"closet", "closest", "nearest":
-			if arena != null and caster != null and arena.has_method("bullet_nearest_enemy_from"):
-				var t = arena.bullet_nearest_enemy_from(1 - caster.side, caster.position)
-				return [t] if t != null else []
+		"player":
+			for e4 in _all_ents(arena, caster):
+				if bool(e4.get("is_player")):
+					return [e4]
 			return []
+		"closest", "closet", "nearest":
+			var t = _nearest(arena, caster, _all_ents(arena, caster), true)
+			return [t] if t != null else []
 		"farthest":
-			if arena != null and caster != null:
-				var best = null
-				var bd := -1.0
-				for e in _side_ents(arena, 1 - caster.side):
-					var d: float = e.position.distance_squared_to(caster.position)
-					if d > bd:
-						bd = d
-						best = e
-				return [best] if best != null else []
+			var t3 = _nearest(arena, caster, _all_ents(arena, caster), false)
+			return [t3] if t3 != null else []
+		"upst":
+			var t4 = _extreme(arena, caster, true)
+			return [t4] if t4 != null else []
+		"downst":
+			var t5 = _extreme(arena, caster, false)
+			return [t5] if t5 != null else []
+		"boss":
+			for e5 in _all_ents(arena, caster):
+				if bool(e5.get("is_boss")):
+					return [e5]
 			return []
 		"random":
-			var pool := _side_ents(arena, 1 - caster.side)
-			return [pool[randi() % pool.size()]] if pool.size() > 0 else []
+			var pool3 := _all_ents(arena, caster)
+			pool3.shuffle()
+			return [pool3[0]] if pool3.size() > 0 else []
 		"enemy":
-			if arena != null and caster != null and arena.has_method("bullet_nearest_enemy_from"):
-				var t2 = arena.bullet_nearest_enemy_from(1 - caster.side, caster.position)
-				return [t2] if t2 != null else []
-			return []
+			var t6 = _nearest(arena, caster, _enemy_ents(arena, caster), true)
+			return [t6] if t6 != null else []
 		"enemies":
-			return _side_ents(arena, 1 - caster.side)
-		_:
-			pass
-	## —— 参数选择器 iterate(命题) ——
-	if s.begins_with("iterate(") and s.ends_with(")"):
-		var prop: String = s.substr(8, s.length() - 9).strip_edges()
-		var ex := DanmakuExpr.new()
-		if not ex.compile(prop, PackedStringArray(["x", "y", "d", "hp", "allhp", "hpper", "ap", "pp"])):
-			return []
-		for e3 in _side_ents(arena, 1 - caster.side):
-			var ctx := ent_ctx(e3, caster)
-			if ex.execute_dict(ctx, 0.0) > 0.5:
-				out.append(e3)
-		return out
+			return _enemy_ents(arena, caster) ## 【m94 角色定义】含杂兵（角色=成员+杂兵）
 	return []
 
-## 敌侧全部存活角色（含消望插件特殊 enemies——PRIVATE 不含，角色操作
-## 语义=角色级；弹幕级另用弹幕选择器）
-## 【宿主类解耦】实体类型=宿主 BattleEntity（内核不可见）——Kind 枚举鸭子判定
-static func _side_ents(arena, side: int) -> Array:
+## —— 内部：实体池（角色=成员+杂兵；不含已死）——
+static func _all_ents(arena, caster) -> Array:
 	var out: Array = []
 	if arena == null or not ("entities" in arena):
 		return out
 	for e in arena.entities:
 		if e == null or not is_instance_valid(e) or e.get("dead"):
 			continue
-		if int(e.get("side")) != side:
-			continue
-		## Kind.PRIVATE（=2，EntityCore 枚举序 PLAYER/MEMBER/PRIVATE/ENEMY）不参与角色操作
-		if int(e.get("kind")) == 2:
-			continue
+		if caster != null and e == caster:
+			continue ## 定位器语义=选取"其他"角色（self() 显式取己）
 		out.append(e)
+	return out
+
+static func _enemy_ents(arena, caster) -> Array:
+	var out: Array = []
+	if caster == null:
+		return out
+	for e in _all_ents(arena, caster):
+		if int(e.get("side")) != int(caster.get("side")):
+			out.append(e)
+	return out
+
+static func _nearest(arena, caster, pool: Array, closest: bool):
+	if caster == null or pool.is_empty():
+		return null
+	var best = null
+	var bd := -1.0
+	for e in pool:
+		var d: float = e.position.distance_squared_to(caster.position)
+		if best == null or (closest and d < bd) or (not closest and d > bd):
+			bd = d
+			best = e
+	return best
+
+static func _extreme(arena, caster, top: bool):
+	var best = null
+	var bv := INF
+	for e in _all_ents(arena, caster):
+		var y: float = float(e.get("position").y)
+		if top and y < bv:
+			bv = y
+			best = e
+		elif not top and y > bv:
+			bv = y
+			best = e
+	return best
+
+## 命题过滤（DanmakuExpr 同一引擎——iterate 系通用容器查询）
+static func _filter_prop(pool: Array, prop: String, caster) -> Array:
+	var p := prop.strip_edges()
+	if p == "":
+		return pool
+	var ex := DanmakuExpr.new()
+	if not ex.compile(p, PackedStringArray(["x", "y", "d", "hp", "allhp", "hpper", "ap", "pp"])):
+		return []
+	var out: Array = []
+	for e6 in pool:
+		if ex.execute_dict(ent_ctx(e6, caster), 0.0) > 0.5:
+			out.append(e6)
+	return out
+
+static func _kind_name(e) -> String:
+	match int(e.get("kind")):
+		0:
+			return "player"
+		1:
+			return "member"
+		2:
+			return "private"
+		3:
+			return "enemy"
+	return ""
+
+## 括号深度感知逗号拆分（嵌套 iterate(…,…) 用）
+static func _split_top(s: String) -> Array:
+	var out: Array = []
+	var cur := ""
+	var depth := 0
+	var in_q := false
+	for ch in s:
+		if ch == "\"":
+			in_q = not in_q
+			cur += ch
+		elif in_q:
+			cur += ch
+		elif ch == "(":
+			depth += 1
+			cur += ch
+		elif ch == ")":
+			depth -= 1
+			cur += ch
+		elif ch == "," and depth == 0:
+			out.append(cur)
+			cur = ""
+		else:
+			cur += ch
+	out.append(cur)
 	return out

@@ -2998,32 +2998,6 @@ const FLOW_OP_DESC := {
 	"loopclips": "循环播放独立于章节的弹幕片段（至符卡结束）。参数（arg）=片段名",
 }
 
-## 【m93 流程参数提示表】op → 框1（参数1）/框2（参数2）占位范式
-const FLOW_ARG_HINT := {
-	"svgresign": "序号（空=默认圆形）",
-	"clean": "",
-	"reflex": "",
-	"inverse": "事件名（替换目标）",
-	"inversep": "事件名（重生事件）",
-	"revolt": "",
-	"inheritdamage": "事件名（伤害来源）",
-	"playclips": "片段名",
-	"loopclips": "片段名",
-	"danmaku": "事件名（释放的弹幕）",
-}
-const FLOW_PARAMS_HINT := {
-	"svgresign": "",
-	"clean": "inspellrange（留空=注册图形范围）",
-	"reflex": "弹幕选择器（留空=全场敌对弹）",
-	"inverse": "弹幕选择器（留空=全场敌对弹）",
-	"inversep": "弹幕选择器（留空=全场敌对弹）",
-	"revolt": "目标定位器（留空=敌侧随机；closet/enemies/random/iterate(hp>>5)）",
-	"inheritdamage": "弹幕选择器（留空=全场敌对弹）",
-	"playclips": "",
-	"loopclips": "",
-	"danmaku": "目标定位器（留空=敌侧随机；closet/enemies/random/iterate(hp>>5)）",
-}
-
 const FLOW_OPS := {
 	"svgresign": {"arg": "", "params": "序号=0"},
 	"clean": {"arg": "", "params": "inspellrange"},
@@ -3076,23 +3050,32 @@ func _build_steps_editor(title: String, steps: Array, refresh_cb: Callable = Cal
 		kl.text = String(st.get("op", "?"))
 		kl.custom_minimum_size = Vector2(110, 0)
 		row.add_child(kl)
-		## 【m93 横排参数化（作者裁定：两框改语义=框1:参数1/框2:参数2；
-		## placeholder 按 op 给范例——closet 单词直挂/iterate(命题)/ev: 泛型前缀
-		## 等范式进提示，文档同步）】
-		var arg_e := LineEdit.new()
-		arg_e.text = String(st.get("arg", ""))
-		arg_e.custom_minimum_size = Vector2(130, 0)
-		arg_e.placeholder_text = "参数1: %s" % str(FLOW_ARG_HINT.get(String(st.get("op", "")), "名称"))
-		arg_e.tooltip_text = "参数1（" + str(FLOW_ARG_HINT.get(String(st.get("op", "")), "名称")) + "）"
-		arg_e.text_changed.connect(func(t: String): st["arg"] = t)
-		row.add_child(arg_e)
-		var pm_e := LineEdit.new()
-		pm_e.text = String(st.get("params", ""))
-		pm_e.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		pm_e.placeholder_text = "参数2: %s" % str(FLOW_PARAMS_HINT.get(String(st.get("op", "")), "选择器（留空=全场敌对弹；ev:事件名=替换目标）"))
-		pm_e.tooltip_text = "参数2（" + str(FLOW_PARAMS_HINT.get(String(st.get("op", "")), "选择器")) + "）——目标选择器：closet=最近者（单词直挂）/enemies=敌侧全部/random=随机/iterate(命题)=如 iterate(hp>>5)"
-		pm_e.text_changed.connect(func(t: String): st["params"] = t)
-		row.add_child(pm_e)
+		## 【m94 流程=函数（作者裁定：形参自动读取→输入框自动生成——原生
+		## op 与开发者新增 op 同一机制；类型标注沿 C++/GDScript 类方法习惯；
+		## 选择器=函数调用式 closest()/enemies()/iterate(命题)/randomp(命题)/
+		## geniterate(命题,类型)——scheme 通用选择器调用节）】
+		var vals: Array = FlowSignature.split_args(st)
+		var sig: Array = FlowSignature.params_of(String(st.get("op", "")))
+		var join_back := func():
+			var j: Dictionary = FlowSignature.join_args(String(st.get("op", "")), vals)
+			st["arg"] = j["arg"]
+			st["params"] = j["params"]
+		for fi in sig.size():
+			var spec0: Dictionary = sig[fi]
+			var fe := LineEdit.new()
+			fe.text = String(vals[fi]) if fi < vals.size() else ""
+			fe.custom_minimum_size = Vector2(120 if fi == 0 else 110, 0)
+			if fi == sig.size() - 1:
+				fe.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+			fe.placeholder_text = "%s:%s" % [spec0["name"], ("（%s）" % spec0["hint"]) if str(spec0["hint"]) != "" else spec0["type"]]
+			fe.tooltip_text = "%s（%s）%s" % [spec0["name"], spec0["type"], spec0["hint"]]
+			var fi_c := fi
+			fe.text_changed.connect(func(t: String):
+				while vals.size() <= fi_c:
+					vals.append("")
+				vals[fi_c] = t
+				join_back.call())
+			row.add_child(fe)
 		var up_b := Button.new()
 		up_b.text = "↑"
 		up_b.focus_mode = Control.FOCUS_NONE
