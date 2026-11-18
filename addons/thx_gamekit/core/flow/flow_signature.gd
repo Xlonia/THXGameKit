@@ -7,7 +7,8 @@ extends RefCounted
 ## 存储格式不变（{op,arg,params}——arg=params 第 0 形参的历史承载，
 ## 读取时按形参表拆分）。
 ## 类型标注沿 C++/GDScript 类方法习惯：
-##   entity=角色（选择器表达式）  danmaku_sel=弹幕选择器表达式
+##   entity=角色（目标定位器——函数调用式：closest()/enemies()/iterate(命题)…）
+##   danmaku_sel=弹幕选择器（函数链式：radius(120).older(30)；all()=全场）
 ##   event=弹幕事件名            clip=片段名
 ##   int/float/string=标量
 ## =============================================================
@@ -21,22 +22,22 @@ const SIGNATURES := {
 		{"name": "范围", "type": "string", "hint": "inspellrange=注册图形范围；留空=同左", "dflt": "inspellrange"},
 	],
 	"reflex": [
-		{"name": "弹幕选择", "type": "danmaku_sel", "hint": "留空=全场敌对弹；sel:shape=circle,r=120=圆内", "dflt": ""},
+		{"name": "弹幕选择", "type": "danmaku_sel", "hint": "留空=全场敌对弹；radius(120)=圆内；链式 radius(120).older(30)", "dflt": ""},
 	],
 	"inverse": [
 		{"name": "事件", "type": "event", "hint": "替换目标事件名", "dflt": ""},
-		{"name": "弹幕选择", "type": "danmaku_sel", "hint": "留空=全场敌对弹", "dflt": ""},
+		{"name": "弹幕选择", "type": "danmaku_sel", "hint": "留空=全场敌对弹；radius(120).older(30)=链式", "dflt": ""},
 	],
 	"inversep": [
 		{"name": "事件", "type": "event", "hint": "重生事件名", "dflt": ""},
-		{"name": "弹幕选择", "type": "danmaku_sel", "hint": "留空=全场敌对弹", "dflt": ""},
+		{"name": "弹幕选择", "type": "danmaku_sel", "hint": "留空=全场敌对弹；radius(120)=圆内", "dflt": ""},
 	],
 	"revolt": [
-		{"name": "目标", "type": "entity", "hint": "角色定位器：closest()/enemies()/randomp(命题)/iterate(命题,类型)；留空=敌侧随机", "dflt": ""},
+		{"name": "目标", "type": "entity", "hint": "角色定位器：closest()/enemies()/randomp(命题)/iterate(命题)=敌侧遍历；留空=敌侧随机", "dflt": ""},
 	],
 	"inheritdamage": [
 		{"name": "事件", "type": "event", "hint": "伤害来源事件名", "dflt": ""},
-		{"name": "弹幕选择", "type": "danmaku_sel", "hint": "留空=全场敌对弹", "dflt": ""},
+		{"name": "弹幕选择", "type": "danmaku_sel", "hint": "留空=全场敌对弹；radius(120)=圆内", "dflt": ""},
 	],
 	"playclips": [
 		{"name": "片段", "type": "clip", "hint": "片段名", "dflt": ""},
@@ -46,7 +47,7 @@ const SIGNATURES := {
 	],
 	"danmaku": [
 		{"name": "事件", "type": "event", "hint": "释放的弹幕事件名", "dflt": ""},
-		{"name": "目标", "type": "entity", "hint": "角色定位器；留空=敌侧随机", "dflt": ""},
+		{"name": "目标", "type": "entity", "hint": "角色定位器：closest()/enemies()/iterate(命题)=敌侧遍历；留空=敌侧随机", "dflt": ""},
 	],
 }
 

@@ -41,7 +41,10 @@ static func resolve(spec: String, caster, arena) -> Array:
 		var inner: String = s.substr(lp + 1, s.length() - lp - 2).strip_edges()
 		match fname:
 			"iterate":
-				return _filter_prop(_all_ents(arena, caster), inner, caster)
+				## 【m95 语义修正（作者 20261118：iterate=仅限已确定特定返回类型
+				## 的环境做相应实体类型返回——不能泛型；带类型=geniterate）】
+				## 符卡流程上下文=敌侧（角色=成员+杂兵）
+				return _filter_prop(_enemy_ents(arena, caster), inner, caster)
 			"randomp":
 				var pool := _filter_prop(_all_ents(arena, caster), inner, caster)
 				return [pool[randi() % pool.size()]] if pool.size() > 0 else []
@@ -83,8 +86,9 @@ static func resolve(spec: String, caster, arena) -> Array:
 			var t5 = _extreme(arena, caster, false)
 			return [t5] if t5 != null else []
 		"boss":
+			## 【m95 boss()=Enemy.csv is_boss 列（作者裁定：boss 属 enemy 类）】
 			for e5 in _all_ents(arena, caster):
-				if bool(e5.get("is_boss")):
+				if int(e5.get("db", {}).get("is_boss", 0) if "db" in e5 else 0) == 1:
 					return [e5]
 			return []
 		"random":

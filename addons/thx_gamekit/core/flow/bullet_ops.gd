@@ -13,9 +13,52 @@ extends RefCounted
 ## =============================================================
 
 ## 弹幕选择器（相对锚点=角色位置；side 过滤 + 区域沿筛 + 数量上限）
-## sel: {shape:"circle"|"band_x"|"band_y", r/x0/x1/y0/y1, t_max, side, max_n}
+## sel: {shape:"circle"|"band_x"|"band_y"|"all", r/x0/x1/y0/y1, t_max, side, max_n}
+## 【m95 弹幕选择器函数化（作者裁定：全部函数化——沿 C++/GDScript 方法链
+## 标点）】parse_dsel("radius(120).older(30)") → 上述约束字典；all()=全场
+## （无几何限定）；older(n)/newer(n)=弹龄下/上限；max(n)=取样上限。
+## 旧 sel: 记法继续兼容。
 ##   circle=di≤r｜band_x=xi∈[x0,x1]｜band_y=yi∈[y0,y1]｜t_max=t_copy 上限
 ## 【性能纪律】平方距比较免 sqrt；命中即收（上升沿语义=进入区域即被选中）
+## 【m95】弹幕选择器函数链解析：all()/radius(r)/bandx(x0,x1)/bandy(y0,y1)/
+## older(n)/newer(n)/max(n)——点链串联=约束交集（依次收窄）；空串=all()
+static func parse_dsel(expr: String) -> Dictionary:
+	var sel := {"shape": "all", "side": -2, "max_n": 4096}
+	var e := expr.strip_edges()
+	if e == "" or e == "all()":
+		return sel
+	for seg in e.split(".", false):
+		var seg2 := seg.strip_edges()
+		if seg2 == "":
+			continue
+		var lp := seg2.find("(")
+		if lp < 0 or not seg2.ends_with(")"):
+			continue
+		var fname: String = seg2.substr(0, lp).strip_edges().to_lower()
+		var inner: String = seg2.substr(lp + 1, seg2.length() - lp - 2).strip_edges()
+		var args := inner.split(",")
+		match fname:
+			"all":
+				sel["shape"] = "all"
+			"radius":
+				sel["shape"] = "circle"
+				sel["r"] = float(args[0]) if args.size() > 0 and args[0].strip_edges() != "" else 120.0
+			"bandx":
+				sel["shape"] = "band_x"
+				sel["x0"] = float(args[0]) if args.size() > 0 else -100.0
+				sel["x1"] = float(args[1]) if args.size() > 1 else 100.0
+			"bandy":
+				sel["shape"] = "band_y"
+				sel["y0"] = float(args[0]) if args.size() > 0 else -100.0
+				sel["y1"] = float(args[1]) if args.size() > 1 else 100.0
+			"older":
+				sel["t_min"] = float(args[0]) if args.size() > 0 else 0.0
+			"newer":
+				sel["t_max"] = float(args[0]) if args.size() > 0 else 0.0
+			"max":
+				sel["max_n"] = int(float(args[0])) if args.size() > 0 else 64
+	return sel
+
 static func select(bullets: Array, anchor: Vector2, sel: Dictionary) -> Array:
 	var out: Array = []
 	var max_n: int = int(sel.get("max_n", 64))
@@ -34,6 +77,8 @@ static func select(bullets: Array, anchor: Vector2, sel: Dictionary) -> Array:
 			continue
 		var dx: float = bl.pos.x - anchor.x
 		var dy: float = bl.pos.y - anchor.y
+		if sel.has("t_min") and b.t < float(sel["t_min"]):
+			continue ## 【m95 函数链】弹龄下限（older(n)）
 		match shape:
 			"all":
 				pass ## 【m90 scheme 修正】全部弹幕个体（弹幕选择器留空=全场）
