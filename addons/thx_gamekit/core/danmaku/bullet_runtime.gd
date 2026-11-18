@@ -489,6 +489,15 @@ static func apply_lod(bl: Bullet) -> void:
 	var cap := lod_cap(maxi(bl.tex_half * 2, 1))
 	if cap > 0.0:
 		bl.draw_radius = minf(bl.draw_radius, cap * 0.5)
+	## 【m96-B 审计 P0①（作者批，阈值 128）】绘制直径绝对封顶——size_mul
+	## 放大弹（16px 素材×20=320px 巨图）是填充率杀手；**判定跟随绘制缩放**
+	## =所见即所判（draw_radius 同步重算）。未放大弹零影响。
+	if bl.ev != null and bl.ev.tag != DanmakuEventData.TAG_LASER:
+		var dia: float = float(bl.tex_half * 2) * bl.size_mul
+		if dia > 128.0:
+			var k: float = 128.0 / dia
+			bl.size_mul *= k
+			bl.draw_radius = bl.tex_half * bl.size_mul
 var _prev_pos := Vector2.INF ## 【0.0.9·He 加速度】上一帧位置 ## 【22b 20261102·修4】DDM 形状贴合：弹幕纹理槽 id（world 分配）
 
 ## 【22b 20261103·去跟踪化（作者裁定）】track_speed/track_dir 是独立状态
