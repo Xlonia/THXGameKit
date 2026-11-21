@@ -424,7 +424,7 @@ func _build_ui() -> void:
 	var pagerow := HBoxContainer.new()
 	left.add_child(pagerow)
 	var group := ButtonGroup.new()
-	for pg in [["danmaku", "弹幕"], ["chara", "角色"], ["privates", "杂兵"], ["timeline", "时间轴"], ["spell", "符卡"], ["clip", "片段"], ["formation", "排布"]]:
+	for pg in [["danmaku", "弹幕"], ["chara", "角色"], ["privates", "杂兵"], ["timeline", "时间轴"], ["spell", "符卡"], ["clip", "片段"], ["formation", "排布"], ["field", "场地"]]:
 		var b := Button.new()
 		b.text = pg[1]
 		b.toggle_mode = true
@@ -449,7 +449,7 @@ func _build_ui() -> void:
 	left.add_child(_asset_users)
 	_refresh_assets()
 	## 右：三个主页面
-	_pages = { "danmaku": _build_danmaku_page(), "chara": ScrollContainer.new(), "privates": ScrollContainer.new(), "timeline": ScrollContainer.new(), "spell": ScrollContainer.new(), "clip": ScrollContainer.new(), "formation": _build_formation_page() }
+	_pages = { "danmaku": _build_danmaku_page(), "chara": ScrollContainer.new(), "privates": ScrollContainer.new(), "timeline": ScrollContainer.new(), "spell": ScrollContainer.new(), "clip": ScrollContainer.new(), "formation": _build_formation_page(), "field": ScrollContainer.new() }
 	for k in _pages:
 		_pages[k].size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		_pages[k].size_flags_vertical = Control.SIZE_EXPAND_FILL
@@ -765,6 +765,115 @@ func _show_main_page(key: String) -> void:
 		_pages["spell"].add_child(_build_spell_page())
 	if key == "clip" and _pages["clip"].get_child_count() == 0:
 		_pages["clip"].add_child(_build_clip_page()) ## 【m86 片段页】
+	if key == "field" and _pages["field"].get_child_count() == 0:
+		_pages["field"].add_child(_build_field_page()) ## 【m109 场地规则页】
+
+## —— 场地规则页（m109：scheme 弹幕编辑器新二"场地规则"节——
+## 规则头 tag/ID+处理对象+规则范围（缺省段=条带）+sattle 特许+mutual/require+
+## ops 场地操作文本（执行器随章节系统）。数据=field_rules.csv（keep 导入，
+## 宿主开战装载进 FieldRules；保存即写穿重注册）——
+var _fr_rows: Array = []      ## 编辑工作副本（字符串字典）
+var _fr_list: ItemList = null
+
+func _build_field_page() -> ScrollContainer:
+	var sc := ScrollContainer.new()
+	sc.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	sc.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	var box := VBoxContainer.new()
+	box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	sc.add_child(box)
+	var title := Label.new()
+	title.text = "场地规则（区域=框线，缺省段=条带；sattle=框内不应用；mutual=覆盖；require=需要）"
+	title.add_theme_font_size_override("font_size", 15)
+	box.add_child(title)
+	var row0 := HBoxContainer.new()
+	box.add_child(row0)
+	var newb := Button.new()
+	newb.text = "新建规则"
+	row0.add_child(newb)
+	var delb := Button.new()
+	delb.text = "删除选中"
+	row0.add_child(delb)
+	var saveb := Button.new()
+	saveb.text = "保存并应用（field_rules.csv）"
+	row0.add_child(saveb)
+	var reloadb := Button.new()
+	reloadb.text = "重读文件"
+	row0.add_child(reloadb)
+	_fr_list = ItemList.new()
+	_fr_list.custom_minimum_size = Vector2(760, 160)
+	box.add_child(_fr_list)
+	var grid := GridContainer.new()
+	grid.columns = 4
+	grid.add_theme_constant_override("h_separation", 12)
+	box.add_child(grid)
+	var cells := {}
+	var col_fields := [
+		["id", "ID"], ["tag", "本地化键名"], ["chara", "处理角色(1/0)"], ["danmaku", "处理弹幕(1/0)"],
+		["box", "主范围 x0,y0,x1,y1"], ["sattle", "特许范围 x0,y0,x1,y1"], ["mutual", "互斥(分号)"], ["require", "需要(分号)"],
+	]
+	var editors := {}
+	for cf in col_fields:
+		var l := Label.new()
+		l.text = cf[1]
+		grid.add_child(l)
+		var e := LineEdit.new()
+		e.custom_minimum_size = Vector2(200, 0)
+		grid.add_child(e)
+		editors[cf[0]] = e
+	var status := Label.new()
+	status.text = ""
+	status.add_theme_font_size_override("font_size", 12)
+	box.add_child(status)
+
+	var refresh_list := func():
+		_fr_list.clear()
+		for i in _fr_rows.size():
+			var r: Dictionary = _fr_rows[i]
+			_fr_list.add_item("%s（%s） 框[%s] 特许[%s]" % [str(r.get("id", "")), str(r.get("tag", "")), str(r.get("box", "")), str(r.get("sattle", ""))])
+
+	var load_from_row := func(idx: int):
+		if idx < 0 or idx >= _fr_rows.size():
+			return
+		var r: Dictionary = _fr_rows[idx]
+		for cf in col_fields:
+			(editors[cf[0]] as LineEdit).text = str(r.get(cf[0], ""))
+
+	newb.pressed.connect(func():
+		_fr_rows.append({"id": "rule_%d" % (_fr_rows.size() + 1), "tag": "新规则", "chara": "1", "danmaku": "0",
+			"box": "", "sattle": "", "mutual": "", "require": "", "ops": ""})
+		refresh_list.call()
+		_fr_list.select(_fr_rows.size() - 1)
+		load_from_row.call(_fr_rows.size() - 1))
+	delb.pressed.connect(func():
+		var sel := _fr_list.get_selected_items()
+		if sel.is_empty():
+			status.text = "先选中要删除的规则"
+			return
+		_fr_rows.remove_at(sel[0])
+		status.text = "已删除（保存后生效）"
+		refresh_list.call())
+	reloadb.pressed.connect(func():
+		_fr_rows = FieldRules.csv_rows()
+		refresh_list.call()
+		status.text = "已重读 field_rules.csv（%d 条）" % _fr_rows.size())
+	saveb.pressed.connect(func():
+		var sel := _fr_list.get_selected_items()
+		if not sel.is_empty():
+			var idx: int = sel[0]
+			if idx < _fr_rows.size():
+				for cf in col_fields:
+					_fr_rows[idx][cf[0]] = (editors[cf[0]] as LineEdit).text.strip_edges()
+		var err: String = FieldRules.save_csv_rows(_fr_rows, THXKit.kpath("data/field_rules.csv"))
+		if err == "":
+			FieldRules.clear()
+			var n: int = FieldRules.load_csv(THXKit.kpath("data/field_rules.csv"))
+			status.text = "已保存并应用（%d 条规则活跃）" % n
+		else:
+			status.text = "保存失败：" + err)
+	_fr_rows = FieldRules.csv_rows()
+	refresh_list.call()
+	return sc
 
 ## —— 弹幕页（原主体：事件列表 + 标签页）——
 func _build_danmaku_page() -> HSplitContainer:
@@ -876,6 +985,8 @@ func _build_menubar() -> MenuBar:
 	settings_menu.name = "设置"
 	settings_menu.add_item("特殊判定盒（黑白位图判定）", 1)
 	settings_menu.add_item("旋转-运动中心偏移显示", 2)
+	settings_menu.add_item("导入标题背景（PNG）", 3)
+	settings_menu.add_item("导入关卡背景（PNG）", 4)
 	mb.add_child(settings_menu)
 	settings_menu.id_pressed.connect(func(id):
 		if id == 1:
@@ -883,7 +994,24 @@ func _build_menubar() -> MenuBar:
 			_set_status("特殊判定盒：%s（仅带 hitbox 列黑白图的弹幕生效）" % ("开" if Bullet.special_hitbox_enabled else "关"))
 		elif id == 2:
 			_show_spin_overlay = not _show_spin_overlay
-			_set_status("旋转-运动中心覆盖显示：%s" % ("开" if _show_spin_overlay else "关")))
+			_set_status("旋转-运动中心覆盖显示：%s" % ("开" if _show_spin_overlay else "关"))
+		elif id == 3 or id == 4:
+			## 【m114 作者】导入标题背景（3）/关卡背景（4）——系统资源浏览器选图
+			var kind := "title" if id == 3 else "stage"
+			var kind_name := "标题背景" if id == 3 else "关卡背景"
+			var fd := FileDialog.new()
+			fd.title = "导入%s（PNG）" % kind_name
+			fd.access = FileDialog.ACCESS_FILESYSTEM
+			fd.file_mode = FileDialog.FILE_MODE_OPEN_FILE
+			fd.use_native_dialog = true
+			fd.filters = ["*.png ; PNG 图片", "*.jpg ; JPG 图片"]
+			fd.file_selected.connect(func(fp: String):
+				var err: String = THXKit.ui_import_bg(kind, fp)
+				_set_status(("%s 已导入（应用随下次启动）" % kind_name) if err == "" else ("%s 导入失败：" % kind_name) + err)
+				fd.queue_free())
+			fd.canceled.connect(func(): fd.queue_free())
+			_dialog_reparent(fd)
+			fd.popup_centered(Vector2i(560, 420)))
 	var edit_menu := PopupMenu.new()
 	edit_menu.name = "编辑"
 	var edit_items := ["撤销", "重做", "项目信息", "查找"]

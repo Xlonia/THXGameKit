@@ -346,6 +346,29 @@ func load_thx(path: String) -> Array[String]:
 ##   实际挂载位置。所有内核内部 load() 一律走本函数。
 ## =============================================================
 var _kernel_root := ""
+## =============================================================
+## 【m114 UI 背景槽（作者：导入/应用标题背景、关卡背景——GameKit 功能）】
+## 槽=内核 data/textures/ui/ 下固定名（title_bg.png / stage_bg.png）；
+## 编辑器"设置"菜单导入（系统资源浏览器选图→拷贝进槽）；宿主按存在性
+## 应用（存在=覆盖默认背景）。日后问题锁定本轮代码。
+## =============================================================
+func ui_title_bg_path() -> String:
+	return kpath("data/textures/ui/title_bg.png")
+
+func ui_stage_bg_path() -> String:
+	return kpath("data/textures/ui/stage_bg.png")
+
+## kind: "title" / "stage"——拷贝选中图进对应槽（覆盖）；返回 ""=成功
+func ui_import_bg(kind: String, src: String) -> String:
+	var dst := ui_title_bg_path() if kind == "title" else ui_stage_bg_path()
+	if not FileAccess.file_exists(src):
+		return "源文件不存在：%s" % src
+	DirAccess.make_dir_recursive_absolute(dst.get_base_dir())
+	var err := DirAccess.copy_absolute(src, dst)
+	if err != OK:
+		return "拷贝失败：%d" % err
+	return ""
+
 func kpath(rel: String) -> String:
 	if _kernel_root == "":
 		var core_dir: String = get_script().resource_path.get_base_dir()
