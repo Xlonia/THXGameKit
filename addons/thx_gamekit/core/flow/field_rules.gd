@@ -216,3 +216,137 @@ static func itemget_radius(ent: Node, now: int = 0) -> float:
 	if until > 0 and now > until:
 		return 0.0
 	return maxf(float(ent.get_meta("itemget_radius", 0.0)), 0.0)
+
+## =============================================================
+## 【CSV 存取（m109 场地规则编辑页/宿主装载共用）】field_rules.csv
+## 列：id,tag,chara,danmaku,box,sattle,mutual,require,ops
+##   box/sattle 单元格="x0,y0,x1,y1"（空段=条带 null；空单元格=无）
+##   mutual/require/ops 单元格=分号分隔多项
+## 载入=逐条 register（调用方决定是否先 clear）；保存=全量覆写。
+## =============================================================
+const CSV_PATH_DEFAULT := "res://addons/thx_gamekit/data/field_rules.csv"
+
+static func _box_to_str(b) -> String:
+	if b == null or not (b is Array) or (b as Array).size() < 4:
+		return ""
+	var parts: Array = []
+	for v in b:
+		parts.append("" if v == null else str(v))
+	return ",".join(parts)
+
+static func _str_to_box(sv: String):
+	var sv2 := sv.strip_edges()
+	if sv2 == "":
+		return null
+	var parts := sv2.split(",")
+	if parts.size() < 4:
+		return null
+	var out: Array = []
+	for i in 4:
+		var t: String = parts[i].strip_edges()
+		out.append(null if t == "" else float(t))
+	return out
+
+static func _list_to_str(arr) -> String:
+	var out: Array = []
+	for v in (arr if arr is Array else []):
+		out.append(str(v))
+	return ";".join(out)
+
+static func load_csv(path: String) -> int:
+	var f := FileAccess.open(path, FileAccess.READ)
+	if f == null:
+		return 0
+	var header: PackedStringArray = []
+	var n := 0
+	while not f.eof_reached():
+		var row := f.get_csv_line()
+		if row.size() == 0:
+			continue
+		var first := row[0].strip_edges()
+		if first.is_empty() or first.begins_with("#"):
+			continue
+		if header.is_empty():
+			header = row
+			continue
+		var d := {}
+		for i in header.size():
+			if i >= row.size() or header[i].is_empty():
+				continue
+			d[header[i]] = row[i]
+		register({
+			"id": String(d.get("id", "")).strip_edges(),
+			"tag": String(d.get("tag", "")).strip_edges(),
+			"chara": String(d.get("chara", "0")).strip_edges() in ["1", "true"],
+			"danmaku": String(d.get("danmaku", "0")).strip_edges() in ["1", "true"],
+			"box": _str_to_box(String(d.get("box", ""))),
+			"sattle": _str_to_box(String(d.get("sattle", ""))),
+			"mutual": String(d.get("mutual", "")).split(";", false),
+			"require": String(d.get("require", "")).split(";", false),
+			"ops": String(d.get("ops", "")).split(";", false),
+		})
+		n += 1
+	f.close()
+	return n
+
+## 读出规则行（编辑页工作副本——字符串字典，不注册）
+static func csv_rows(path: String = CSV_PATH_DEFAULT) -> Array:
+	var f := FileAccess.open(path, FileAccess.READ)
+	var out: Array = []
+	if f == null:
+		return out
+	var header: PackedStringArray = []
+	while not f.eof_reached():
+		var row := f.get_csv_line()
+		if row.size() == 0:
+			continue
+		var first := row[0].strip_edges()
+		if first.is_empty() or first.begins_with("#"):
+			continue
+		if header.is_empty():
+			header = row
+			continue
+		var d := {}
+		for i in header.size():
+			d[header[i]] = row[i] if i < row.size() else ""
+		out.append(d)
+	f.close()
+	return out
+
+static func save_csv_rows(rows: Array, path: String) -> String:
+	var f := FileAccess.open(path, FileAccess.WRITE)
+	if f == null:
+		return "写盘失败：%d" % FileAccess.get_open_error()
+	f.store_line("id,tag,chara,danmaku,box,sattle,mutual,require,ops")
+	for rd in rows:
+		var r: Dictionary = rd
+		var box_arr = _str_to_box(String(r.get("box", "")))
+		var cells: Array = [
+			String(r.get("id", "")), String(r.get("tag", "")),
+			String(r.get("chara", "0")), String(r.get("danmaku", "0")),
+			_box_to_str(box_arr), _box_to_str(_str_to_box(String(r.get("sattle", "")))),
+			String(r.get("mutual", "")).replace(",", ""), String(r.get("require", "")).replace(",", ""),
+			String(r.get("ops", "")),
+		]
+		var line: Array = []
+		for c in cells:
+			var cs := str(c)
+			line.append(('"%s"' % cs.replace('"', '""')) if (cs.contains(",") or cs.contains('"')) else cs)
+		f.store_line(",".join(line))
+	f.close()
+	return ""
+
+static func save_csv(path: String) -> String:
+	var rows: Array = []
+	for r in _rules:
+		var box_arr = null
+		if not (r["x0"] == null and r["y0"] == null and r["x1"] == null and r["y1"] == null):
+			box_arr = [r["x0"], r["y0"], r["x1"], r["y1"]]
+		rows.append({
+			"id": r["id"], "tag": r["tag"], "chara": "1" if bool(r["chara"]) else "0",
+			"danmaku": "1" if bool(r["danmaku"]) else "0",
+			"box": _box_to_str(box_arr), "sattle": _box_to_str(r["sattle"]),
+			"mutual": _list_to_str(r["mutual"]), "require": _list_to_str(r["require"]),
+			"ops": _list_to_str(r["ops"]),
+		})
+	return save_csv_rows(rows, path)

@@ -33,6 +33,9 @@ var t_event := 0.0
 var depth := 0
 var damage_override := -1 ## 【m74 inheritdamage】伤害继承覆盖（-1=用 ev 自身伤害）
 var alive := true
+## 【m109 擦弹（scheme graze(距离)）】已被擦过的标签（#grazed_距离）——
+## 每弹至多记一次擦弹；池化重置清单成员（见 reset）
+var grazed := false
 var hidden_now := false
 ## 【谱系追踪 20261109】出生路径标签（trace_clear_probe 用）：fire=直发/
 ## fan=事件扇展开/pend=旋转延时副本/cannon=火炮接管/rp_child=repeat子代——
@@ -201,6 +204,7 @@ func setup(event: DanmakuEventData, spawn_origin: Vector2, bullet_side: int, src
 	## 重复/只发一个"的根因；池里恰好弹出旧载体则正常=偶发不故障）
 	repeat_enabled = true
 	frozen_ok = false
+	grazed = false ## 【m109 擦弹标签入池化重置清单（条件赋值字段纪律）】
 	damage_override = -1 ## 【m74】继承覆盖入池化重置清单（条件赋值字段纪律）
 	## 【0.0.9·池毒根因③（作者假说证实：回收×setup 冲突）20261105】
 	## Functed 类是积分器：forward += speed·dt。尸体携带旧生前积分（满航程
@@ -1450,6 +1454,9 @@ func _eval(e: DanmakuExpr, fallback: float, ctx: Dictionary = {}) -> float:
 
 ## 【A4】线性拟合：f(t)=a+b·t；探测 4 点共线才启用（含常量与快照变量）
 ## 快照变量在 ctx 中恒定 → 对 t 求值即为整条弹幕生命周期内的真实值
+func _fit_linear_pub(e: DanmakuExpr, ctx: Dictionary) -> Array:
+	return _fit_linear(e, ctx)
+
 func _fit_linear(e: DanmakuExpr, ctx: Dictionary) -> Array:
 	if e == null or not (e.uses_variable("t") or e.uses_variable("t_r")):
 		return []
