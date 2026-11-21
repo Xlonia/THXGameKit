@@ -353,10 +353,10 @@ var _kernel_root := ""
 ## 应用（存在=覆盖默认背景）。日后问题锁定本轮代码。
 ## =============================================================
 func ui_title_bg_path() -> String:
-	return kpath("data/textures/ui/title_bg.png")
+	return kpath("res://addons/thx_gamekit/data/textures/ui/title_bg.png")
 
 func ui_stage_bg_path() -> String:
-	return kpath("data/textures/ui/stage_bg.png")
+	return kpath("res://addons/thx_gamekit/data/textures/ui/stage_bg.png")
 
 ## kind: "title" / "stage"——拷贝选中图进对应槽（覆盖）；返回 ""=成功
 func ui_import_bg(kind: String, src: String) -> String:

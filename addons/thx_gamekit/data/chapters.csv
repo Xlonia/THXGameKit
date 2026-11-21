@@ -1,0 +1,3 @@
+id,name,order,transition,loop,goto,skip,select,fix,music_plan,music_track,music_start,entrance_clips,local_triggers,globe_triggers,enemypcs,boss_data
+chapter_1,示例章节一,1,next,flow,,,,,,,0,"","","",,
+chapter_2,示例章节二,2,next,flow,,,,,,,0,"","","",,
