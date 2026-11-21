@@ -19,12 +19,35 @@ static var CSV_OVERRIDE := ""
 static var ENEMY_OVERRIDE := ""
 static var PRIVATES_OVERRIDE := ""
 
+static var _case_cache: Dictionary = {}
+## 【m111 大小写核正】内核数据文件名小写、宿主 gameAssetBase 大写（Characters/
+## Enemy）——FileAccess 在 Windows 上大小写不敏感命中但引擎每刷一条 case
+## mismatch 警告（作者日志 77 条）。DirAccess 反查真实存储名并缓存。
+static func _resolve_csv(base: String, fname: String) -> String:
+	var key := base + "|" + fname
+	if _case_cache.has(key):
+		return _case_cache[key]
+	var p := base.path_join(fname)
+	if FileAccess.file_exists(p):
+		var da := DirAccess.open(base)
+		if da != null:
+			da.list_dir_begin()
+			var fn := da.get_next()
+			while fn != "":
+				if not da.current_is_dir() and fn.to_lower() == fname.to_lower():
+					p = base.path_join(fn)
+					break
+				fn = da.get_next()
+			da.list_dir_end()
+	_case_cache[key] = p
+	return p
+
 static func csv_path() -> String:
-	return CSV_OVERRIDE if CSV_OVERRIDE != "" else DATA_BASE.path_join("characters.csv")
+	return CSV_OVERRIDE if CSV_OVERRIDE != "" else _resolve_csv(DATA_BASE, "characters.csv")
 static func enemy_path() -> String:
-	return ENEMY_OVERRIDE if ENEMY_OVERRIDE != "" else DATA_BASE.path_join("enemy.csv")
+	return ENEMY_OVERRIDE if ENEMY_OVERRIDE != "" else _resolve_csv(DATA_BASE, "enemy.csv")
 static func privates_path() -> String:
-	return PRIVATES_OVERRIDE if PRIVATES_OVERRIDE != "" else DATA_BASE.path_join("privates.csv")
+	return PRIVATES_OVERRIDE if PRIVATES_OVERRIDE != "" else _resolve_csv(DATA_BASE, "privates.csv")
 
 const INT_COLS := ["Cruise", "Normal", "Determine", "Defend", "Mag", "Phy", "ID", "Team", "Main_Cd", "Sub_Cd"]
 const FLOAT_COLS := ["Weapon_Muti", "Char_Raid", "Char_Allfire", "Char_Blitz", "Char_Cover", "Char_Elast", "Char_Delay", "Char_Feint",
