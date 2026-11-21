@@ -110,10 +110,9 @@ static func _in_box_arr(pos: Vector2, b: Array) -> bool:
 		return false
 	return true
 
-## smooth 强度：smooth 子框内=1.0；子框边→主框边沿径向线性衰减到 0.0；
-## 无 smooth 定义时：主范围内恒 1.0（非主范围 0.0）。
-## 用于把场地操作强度过渡的用法（scheme：如越往上伤害越高的判定）。
-## 近似口径：两框视作同心（径向距离比例）——条带主框（缺省边）恒 1.0。
+## smooth 强度：smooth 子框内=1.0；子框线→主框线之间按**逐轴出超比**线性
+## 衰减到 0.0（scheme："在圆滑范围的框线到所属范围的框线内，场地操作的强度
+## 将会过渡"——框线到框线口径，非径向）；无 smooth 定义=主范围内恒 1.0。
 static func smooth_strength(rule: Dictionary, pos: Vector2) -> float:
 	if not in_main(rule, pos) or in_sattle(rule, pos):
 		return 0.0
@@ -122,39 +121,34 @@ static func smooth_strength(rule: Dictionary, pos: Vector2) -> float:
 		return 1.0
 	if _in_box_arr(pos, sm):
 		return 1.0
-	var mc := _box_center([rule.get("x0"), rule.get("y0"), rule.get("x1"), rule.get("y1")])
-	var r_s := _box_half_diag(sm)
-	var r_m := _box_half_diag([rule.get("x0"), rule.get("y0"), rule.get("x1"), rule.get("y1")])
-	if r_m <= r_s + 0.0001:
-		return 1.0
-	var d := pos.distance_to(mc)
-	return clampf(1.0 - (d - r_s) / (r_m - r_s), 0.0, 1.0)
-
-static func _box_half_diag(b: Array) -> float:
-	var x0: float = float(b[0]) if b.size() > 0 and b[0] != null else -1e9
-	var x1: float = float(b[2]) if b.size() > 2 and b[2] != null else 1e9
-	var y0: float = float(b[1]) if b.size() > 1 and b[1] != null else -1e9
-	var y1: float = float(b[3]) if b.size() > 3 and b[3] != null else 1e9
-	if x1 > 1e8 or x0 < -1e8 or y1 > 1e8 or y0 < -1e8:
-		return 1e9 ## 条带（缺省边）=无衰减
-	return Vector2(x1 - x0, y1 - y0).length() * 0.5
-
-static func _box_center(b: Array) -> Vector2:
-	var x0: float = float(b[0]) if b.size() > 0 and b[0] != null else -1e9
-	var x1: float = float(b[2]) if b.size() > 2 and b[2] != null else 1e9
-	var y0: float = float(b[1]) if b.size() > 1 and b[1] != null else -1e9
-	var y1: float = float(b[3]) if b.size() > 3 and b[3] != null else 1e9
-	return Vector2((x0 + x1) * 0.5, (y0 + y1) * 0.5)
+	var over := 0.0 ## 逐轴：出 smooth 框的距离 / smooth 框到主框的余量
+	var pairs := [
+		[pos.x, sm[0], sm[2], rule.get("x0"), rule.get("x1")],
+		[pos.y, sm[1], sm[3], rule.get("y0"), rule.get("y1")],
+	]
+	for pr in pairs:
+		var v: float = float(pr[0])
+		var s0 = pr[1]
+		var s1 = pr[2]
+		var m0 = pr[3]
+		var m1 = pr[4]
+		if s0 != null and v < float(s0):
+			var span0: float = (float(s0) - float(m0)) if m0 != null else 1.0
+			over = maxf(over, (float(s0) - v) / maxf(span0, 0.0001))
+		elif s1 != null and v > float(s1):
+			var span1: float = (float(m1) - float(s1)) if m1 != null else 1.0
+			over = maxf(over, (v - float(s1)) / maxf(span1, 0.0001))
+	return clampf(1.0 - over, 0.0, 1.0)
 
 ## 该点在该规则的主范围内（未过关系过滤）
 static func _raw_hit(rule: Dictionary, pos: Vector2) -> bool:
 	return in_main(rule, pos) and not in_sattle(rule, pos)
 
-## 查询：pos 处活跃的规则（处理对象匹配 + require 满足 + 未被 mutual 覆盖）。
+## 查询：pos 处活跃的规则（处理对象匹配 + mutual 覆盖 + require 满足）。
 ## mutual 语义（scheme）：support_out 覆盖 total_support——覆盖者命中时被覆盖者
 ## 在该点视为不活跃（即使其主范围包含该点）。
+## require 语义：依赖对象须在 mutual 过滤后仍活跃（scheme"需要"=另一规则出现）。
 static func active_for(pos: Vector2, target: String = "chara") -> Array:
-	var out: Array = []
 	var hit: Array = []
 	for r in _rules:
 		var key := "chara" if target == "chara" else "danmaku"
@@ -163,21 +157,27 @@ static func active_for(pos: Vector2, target: String = "chara") -> Array:
 		if not _raw_hit(r, pos):
 			continue
 		hit.append(r)
+	## pass1：mutual 过滤（被覆盖者剔除）
+	var kept: Array = []
 	for r in hit:
-		var ok := true
-		for rq in r["require"]:
-			var rq_active := false
-			for h in hit:
-				if h["id"] == rq:
-					rq_active = true
-					break
-			if not rq_active:
-				ok = false
-				break
-		if not ok:
-			continue
+		var suppressed := false
 		for h in hit:
 			if (h["mutual"] as Array).has(r["id"]):
+				suppressed = true
+				break
+		if not suppressed:
+			kept.append(r)
+	## pass2：require 过滤（依赖须在 kept 中=依赖自身未被覆盖且命中）
+	var out: Array = []
+	for r in kept:
+		var ok := true
+		for rq in r["require"]:
+			var found := false
+			for k in kept:
+				if k["id"] == rq:
+					found = true
+					break
+			if not found:
 				ok = false
 				break
 		if ok:
