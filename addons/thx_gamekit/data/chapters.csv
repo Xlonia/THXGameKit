@@ -1,2 +1,2 @@
-id,name,order,transition,loop,goto,skip,select,fix,music_plan,music_track,music_start,entrance_clips,chars,local_triggers,globe_triggers,enemypcs,boss_data,background,moves
-chapter_1,新章节,1,next,flow,,,,,,,,,,,,,,,,
+id,name,order,transition,loop,goto,skip,select,fix,music_plan,music_track,music_start,entrance_clips,chars,local_triggers,globe_triggers,enemypcs,boss_data,background,moves,midboss
+chapter_1,新章节,1,next,flow,,,,,,,,,,,,,,,,,

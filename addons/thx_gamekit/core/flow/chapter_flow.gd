@@ -61,6 +61,7 @@ func start_rows(ordered_rows: Array) -> void:
 	fb_seen.clear()
 	trig_memo.clear()
 	skip_plans = []
+	_phy_state.clear()
 	for r in rows:
 		for sk in ChapterData.parse_skip_cell(str(r.get("skip", ""))):
 			skip_plans.append(sk)
@@ -206,6 +207,9 @@ func begin(mem: Dictionary) -> void:
 	for key in chars_state.keys():
 		if str(key).begins_with(str(mem.get("id", "")) + "|"):
 			chars_state.erase(key) ## 循环重进：条目状态清（从头再来——scheme）
+	for key2 in _phy_state.keys():
+		if str(key2).begins_with(str(mem.get("id", "")) + "|"):
+			_phy_state.erase(key2) ## phy 积分态同步清（段位重算）
 	entrance.emit(mem) ## 入场片段（宿主播——锚=演出方领队）
 
 func end(mem: Dictionary) -> void:
@@ -283,7 +287,7 @@ func cond(expr: String, mem: Dictionary) -> bool:
 		"shoot": float(BehaviorScore.read("shoot")),
 		"privatehit": float(BehaviorScore.read("privatehit")),
 		"midboss": float(BehaviorScore.read("midboss")),
-		"dochuhit": float(BehaviorScore.read("dochuhit")),
+		"dochuhit": 1.0 if BehaviorScore.level_flag("dochuhit") else 0.0, ## 关卡级认定标签（幂等——作者 20261123）
 		"clear": float(BehaviorScore.read("clear")),
 	}
 	return ex.execute_dict(vals, 0.0) > 0.5
@@ -330,21 +334,79 @@ func chars_tick(mem: Dictionary) -> void:
 
 ## 运动关键帧：moves="名@tick:x,y[|cx,cy];…"——段内二次贝塞尔（弯曲点=进入
 ## 该关键帧一段的弯曲点，缺省=直线）；首段前=出场位，末段后=末关键帧。
+## 函数形态（2c 作者 20261123 确认：直接用物理类弹幕术语）：名@tick:phy(x速度
+## 式,y速度式[,速度乘数式])——自该帧起逐帧积分位移（t=运动段内帧数，像素/帧
+## 语义同物理弹幕 x/y/speed）；phy 段激活期间优先于贝塞尔关键帧。
+var _phy_memo: Dictionary = {} ## phy 参数串 → [ex_x, ex_y, ex_spd]
+var _phy_state: Dictionary = {} ## ch_id|名 → {tick, pos}
+
+func _phy_exprs(key: String) -> Array:
+	if not _phy_memo.has(key):
+		var segs := EntityOps._split_top(key)
+		var exs: Array = []
+		for i in 3:
+			var ex := DanmakuExpr.new()
+			var src: String = segs[i].strip_edges() if i < segs.size() else ""
+			if src == "":
+				src = "1" if i == 2 else "0"
+			if not ex.compile(src.replace(">>", ">").replace("<<", "<"), PackedStringArray(["t"])):
+				ex = null
+			exs.append(ex)
+		_phy_memo[key] = exs
+	return _phy_memo[key]
+
 func moves_tick(mem: Dictionary, lt: int, ch_id: String) -> void:
 	var kfs: Dictionary = {}
+	var phys: Dictionary = {}
 	for mv in ChapterData.parse_moves(str(mem.get("moves", ""))):
-		if not kfs.has(mv["name"]):
-			kfs[mv["name"]] = []
-		(kfs[mv["name"]] as Array).append(mv)
-	if kfs.is_empty():
+		if mv.has("phy"):
+			if not phys.has(mv["name"]):
+				phys[mv["name"]] = []
+			(phys[mv["name"]] as Array).append(mv)
+		else:
+			if not kfs.has(mv["name"]):
+				kfs[mv["name"]] = []
+			(kfs[mv["name"]] as Array).append(mv)
+	if kfs.is_empty() and phys.is_empty():
 		return
 	var enter_pos := {}
 	for ce2 in ChapterData.parse_char_entries(str(mem.get("chars", ""))):
 		enter_pos[str(ce2["name"])] = ce2["pos"]
+	## phy 函数形态（激活段=最新 tick<=lt 的条目；逐帧积分——优先于贝塞尔）
+	for nm2 in phys:
+		var st3: Dictionary = chars_state.get(ch_id + "|" + str(nm2), {"entered": false})
+		if not bool(st3["entered"]):
+			continue
+		var plist: Array = phys[nm2]
+		plist.sort_custom(func(a, b): return int(a["tick"]) < int(b["tick"]))
+		var active = null
+		for pf in plist:
+			if lt >= int(pf["tick"]):
+				active = pf
+		if active == null:
+			continue
+		var key := str(active["phy"])
+		var exs: Array = _phy_exprs(key)
+		var stkey := ch_id + "|" + str(nm2)
+		var seg: Dictionary = _phy_state.get(stkey, {"tick": -1, "pos": Vector2.ZERO})
+		if int(seg["tick"]) != int(active["tick"]):
+			seg = {"tick": int(active["tick"]), "pos": enter_pos.get(nm2, Vector2.ZERO)}
+		var t_seg := float(lt - int(active["tick"]))
+		var ex_x = exs[0]
+		var ex_y = exs[1]
+		var ex_s = exs[2]
+		var vx: float = ex_x.execute_dict({"t": t_seg}, 0.0) if ex_x != null else 0.0
+		var vy: float = ex_y.execute_dict({"t": t_seg}, 0.0) if ex_y != null else 0.0
+		var spd: float = ex_s.execute_dict({"t": t_seg}, 1.0) if ex_s != null else 1.0
+		seg["pos"] = (seg["pos"] as Vector2) + Vector2(vx, vy) * spd
+		_phy_state[stkey] = seg
+		char_driven.emit(str(nm2), seg["pos"])
 	for nm in kfs:
 		var st2: Dictionary = chars_state.get(ch_id + "|" + str(nm), {"entered": false})
 		if not bool(st2["entered"]):
 			continue ## 未出场不编排
+		if phys.has(nm):
+			continue ## phy 段激活的字符由积分驱动（优先于贝塞尔）
 		var list: Array = kfs[nm]
 		list.sort_custom(func(a, b): return int(a["tick"]) < int(b["tick"]))
 		var p0: Vector2 = enter_pos.get(nm, Vector2.ZERO)

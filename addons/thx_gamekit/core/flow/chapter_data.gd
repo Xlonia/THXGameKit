@@ -85,7 +85,7 @@ static func ordered() -> Array:
 const CSV_PATH_DEFAULT := "res://addons/thx_gamekit/data/chapters.csv"
 const COLUMNS := ["id", "name", "order", "transition", "loop", "goto", "skip", "select", "fix",
 	"music_plan", "music_track", "music_start", "entrance_clips", "chars", "local_triggers",
-	"globe_triggers", "enemypcs", "boss_data", "background", "moves"]
+	"globe_triggers", "enemypcs", "boss_data", "background", "moves", "midboss"]
 
 static func load_csv(path: String = CSV_PATH_DEFAULT) -> int:
 	var f := FileAccess.open(path, FileAccess.READ)
@@ -276,6 +276,13 @@ static func parse_moves(cell: String) -> Array:
 		var has_ctrl := false
 		var bi := rest.find("|")
 		var pos_part := rest.substr(0, bi) if bi >= 0 else rest
+		var pp := pos_part.strip_edges()
+		if pp.begins_with("phy(") and pp.ends_with(")"):
+			## 函数形态（2c 作者 20261123 确认：同物理类弹幕术语）——
+			## phy(x速度式,y速度式[,速度乘数式])，t=运动段内帧数，逐帧积分位移
+			out.append({"name": nm, "tick": tick, "phy": pp.substr(4, pp.length() - 5),
+				"pos": Vector2.ZERO, "ctrl": Vector2.ZERO, "has_ctrl": false})
+			continue
 		var xy := pos_part.split(",")
 		if xy.size() == 2:
 			pos = Vector2(float(xy[0]), float(xy[1]))

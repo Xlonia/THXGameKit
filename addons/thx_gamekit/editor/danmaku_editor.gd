@@ -926,6 +926,7 @@ func _build_chapter_page() -> ScrollContainer:
 		["fix", "并列混合(起始,结束)"], ["music_plan", "音乐方案"], ["music_track", "音乐轨"], ["music_start", "起始点(秒)"],
 		["enemypcs", "章节敌机出场数"], ["boss_data", "boss 数据(键=值;…)"],
 		["background", "背景画面(png/bmp/ogv 名或路径)"], ["moves", "运动关键帧(名@tick:x,y|cx,cy;…)"],
+		["midboss", "midboss 标签(1=道中boss章——击破认定 dochuhit)"],
 	]
 	var editors := {}
 	for cf in col_fields:
@@ -1031,7 +1032,7 @@ func _build_chapter_page() -> ScrollContainer:
 		_ch_rows.append({"id": "chapter_%d" % (_ch_rows.size() + 1), "name": "新章节", "order": str(_ch_rows.size() + 1),
 			"transition": "next", "loop": "flow", "goto": "", "skip": "", "select": "", "fix": "",
 			"music_plan": "", "music_track": "", "music_start": "", "enemypcs": "", "boss_data": "",
-			"entrance_clips": "", "local_triggers": "", "globe_triggers": "", "background": "", "moves": ""})
+			"entrance_clips": "", "local_triggers": "", "globe_triggers": "", "background": "", "moves": "", "midboss": ""})
 		refresh_list.call()
 		_ch_list.select(_ch_rows.size() - 1)
 		load_from_row.call(_ch_rows.size() - 1))

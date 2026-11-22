@@ -13,11 +13,24 @@ class_name BehaviorScore
 const EVENTS := ["bullseye", "hit", "privatehit", "spell", "playerspell", "leftless",
 	"miss", "danmaku", "shoot", "midboss", "dochuhit", "clear", "graze"]
 
+static var _level_flags: Dictionary = {}   ## 关卡级标签（dochuhit——幂等认定，不随章节结算重置）
+
+## 关卡级标签写入（已认定=再写入无所谓——返回是否首次）
+static func set_level_flag(n: String) -> bool:
+	if _level_flags.has(n):
+		return false
+	_level_flags[n] = true
+	return true
+
+static func level_flag(n: String) -> bool:
+	return _level_flags.has(n)
+
 static var _scores: Dictionary = {}        ## 行为名 → 累计（章节内）
 static var _display: Dictionary = {}       ## 行为名 → 显示副本累计（_display 口径）
 static var _noreset_tags: Dictionary = {}  ## 行为名 → true（#behavior_score_noreset_chapter）
 
 static func clear() -> void:
+	_level_flags.clear() ## 关卡级标签随新关卡清
 	_scores.clear()
 	_display.clear()
 
