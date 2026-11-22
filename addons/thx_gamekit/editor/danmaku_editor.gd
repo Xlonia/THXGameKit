@@ -675,7 +675,8 @@ func _build_probe_page() -> Control:
 	box.add_child(probe_tip)
 	for spec in [["probe_draw_timing", "绘制层计时（painter µs 计时）", true],
 		["probe_heat_stats", "热力图统计控制台输出（[Heatmap] 行）", false],
-		["probe_fam_contour", "族图/等高线 GPU 推进（He/Hd/Hv 期望系——关=AI 深层功能停摆，仅性能定位用）", true]]:
+		["probe_fam_contour", "族图/等高线 GPU 推进（He/Hd/Hv 期望系——关=AI 深层功能停摆，仅性能定位用）", true],
+		["probe_mm_stats", "弹幕 MM 统计（纹理种/实例数/大尺寸弹计数——审计§7 验证）", false]]:
 		var pr := HBoxContainer.new()
 		box.add_child(pr)
 		var cb := CheckBox.new()
