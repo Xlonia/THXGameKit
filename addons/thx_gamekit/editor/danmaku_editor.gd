@@ -365,7 +365,7 @@ func _ready() -> void:
 ## =============================================================
 ## UI 构建：顶栏 / 左侧主页面签+素材栏 / 主区 / 底栏
 ## 【布局对齐 scheme/图片示意（作者批复 2026-10-02）】
-##   左侧竖排主页面签：角色 / 弹幕 / 时间轴；其下为素材栏（媒体库式）
+##   左侧竖排主页面签：角色 / 弹幕（时间轴页已退役归章节——m119 作者令）；其下为素材栏（媒体库式）
 ##   弹幕页 = 事件列表 + 三标签（通用参数[含颜色HSL]/弹幕表达/使用者）
 ##   角色页 = 元数据/表现/性格/角色弹幕 四节（BoardBasic）
 ##   弹幕显示浮窗：[Z] 或按钮唤出，2x 缩放，全屏=窗口最大化（BoardBasic/2）
@@ -424,7 +424,7 @@ func _build_ui() -> void:
 	var pagerow := HBoxContainer.new()
 	left.add_child(pagerow)
 	var group := ButtonGroup.new()
-	for pg in [["danmaku", "弹幕"], ["chara", "角色"], ["privates", "杂兵"], ["timeline", "时间轴"], ["spell", "符卡"], ["clip", "片段"], ["formation", "排布"], ["field", "场地"], ["chapter", "章节"]]:
+	for pg in [["danmaku", "弹幕"], ["chara", "角色"], ["privates", "杂兵"], ["spell", "符卡"], ["clip", "片段"], ["formation", "排布"], ["field", "场地"], ["chapter", "章节"]]:
 		var b := Button.new()
 		b.text = pg[1]
 		b.toggle_mode = true
@@ -449,14 +449,13 @@ func _build_ui() -> void:
 	left.add_child(_asset_users)
 	_refresh_assets()
 	## 右：三个主页面
-	_pages = { "danmaku": _build_danmaku_page(), "chara": ScrollContainer.new(), "privates": ScrollContainer.new(), "timeline": ScrollContainer.new(), "spell": ScrollContainer.new(), "clip": ScrollContainer.new(), "formation": _build_formation_page(), "field": ScrollContainer.new(), "chapter": ScrollContainer.new() }
+	_pages = { "danmaku": _build_danmaku_page(), "chara": ScrollContainer.new(), "privates": ScrollContainer.new(), "spell": ScrollContainer.new(), "clip": ScrollContainer.new(), "formation": _build_formation_page(), "field": ScrollContainer.new(), "chapter": ScrollContainer.new() }
 	for k in _pages:
 		_pages[k].size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		_pages[k].size_flags_vertical = Control.SIZE_EXPAND_FILL
 		body.add_child(_pages[k])
 	_pages["chara"].name = "CharaPage"
 	_pages["privates"].name = "PrivatesPage"
-	_pages["timeline"].name = "TimelinePage"
 	_pages["formation"].name = "FormationPage"
 	_show_main_page("danmaku")
 	## 底栏（锚定底部）
@@ -759,8 +758,6 @@ func _show_main_page(key: String) -> void:
 		_pages["chara"].add_child(_build_chara_page())
 	if key == "privates" and _pages["privates"].get_child_count() == 0:
 		_pages["privates"].add_child(_build_privates_page())
-	if key == "timeline" and _pages["timeline"].get_child_count() == 0:
-		_pages["timeline"].add_child(_build_timeline_page())
 	if key == "spell" and _pages["spell"].get_child_count() == 0:
 		_pages["spell"].add_child(_build_spell_page())
 	if key == "clip" and _pages["clip"].get_child_count() == 0:
@@ -925,7 +922,7 @@ func _build_chapter_page() -> ScrollContainer:
 		["loop", "循环(flow/trigged/slug/loop)"], ["goto", "跳转(目标[|条件])"], ["skip", "跳过(id[|条件];…)"], ["select", "抉择(条件)"],
 		["fix", "并列混合(起始,结束)"], ["music_plan", "音乐方案"], ["music_track", "音乐轨"], ["music_start", "起始点(秒)"],
 		["enemypcs", "章节敌机出场数"], ["boss_data", "boss 数据(键=值;…)"],
-		["background", "背景画面(png/bmp 名或路径)"], ["moves", "运动关键帧(名@tick:x,y|cx,cy;…)"],
+		["background", "背景画面(png/bmp/ogv 名或路径)"], ["moves", "运动关键帧(名@tick:x,y|cx,cy;…)"],
 	]
 	var editors := {}
 	for cf in col_fields:
@@ -3396,17 +3393,10 @@ func _build_steps_editor(title: String, steps: Array, refresh_cb: Callable = Cal
 		cp_b.focus_mode = Control.FOCUS_NONE
 		cp_b.pressed.connect(func():
 			steps.insert(i + 1, {"op": st.get("op", ""), "arg": st.get("arg", ""), "params": st.get("params", "")})
-			_refresh_tl_detail())
+			refresh_cb.call())
 		row.add_child(cp_b)
 	return box
 
-## 时间轴编辑器（作者批复 2026-10-02）：每个 0.1秒 tick 安排一个或多个
-## 弹幕事件；随 .thx 保存为 danmaku/<名>.gd（格式见 TimelineData）。
-## 运行时释放（能力/符卡）属②期接线。
-## =============================================================
-var _tl_list: ItemList
-var _tl_detail: VBoxContainer
-var _tl_selected := -1
 
 ## —— 符卡页（m77：spell.csv 编辑——键名+三触发器伪节点图）——
 var _spell_list: ItemList
@@ -3566,8 +3556,7 @@ func _refresh_spell_detail() -> void:
 	tip.add_theme_font_size_override("font_size", 12)
 	tip.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_spell_detail.add_child(tip)
-	## 【m89 修复（作者致命报错 3243）】owner 回调=符卡页刷新（原 m77 迁移
-	## 遗留还在调时间轴页刷新→_tl_detail 未建=崩溃）
+	## 【m119 修】steps 编辑器三按钮+⧉复制统一走 owner 回调（原 ⧉ 硬编码调时间轴页刷新——页退役后为遗留炸弹，一并归位）
 	_spell_detail.add_child(_build_steps_editor("spellstart（符卡启动）", sp.steps_start, _refresh_spell_detail))
 	_spell_detail.add_child(_build_steps_editor("spellfin（符卡结束）", sp.steps_fin, _refresh_spell_detail))
 	_spell_detail.add_child(_build_steps_editor("spelltick（每事件帧）", sp.steps_tick, _refresh_spell_detail))
@@ -3770,168 +3759,6 @@ func _open_preview_for_spell(sp: SpellData) -> void:
 			st2.set_spell(sp)
 			_preview_window.title = "符卡预览 — %s（Z=释放  Esc=关闭）" % sp.spell_name
 
-func _build_timeline_page() -> Control:
-	var split := HSplitContainer.new()
-	split.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	## 左：时间轴列表
-	var left := VBoxContainer.new()
-	left.custom_minimum_size = Vector2(240, 0)
-	split.add_child(left)
-	_tl_list = ItemList.new()
-	_tl_list.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	_tl_list.item_selected.connect(func(i): _tl_selected = i; _refresh_tl_detail())
-	left.add_child(_tl_list)
-	var lbtns := HBoxContainer.new()
-	left.add_child(lbtns)
-	for t in ["新建", "删除"]:
-		var b := Button.new()
-		b.text = t
-		b.pressed.connect(_on_tl_btn.bind(t))
-		lbtns.add_child(b)
-	## 右：详情
-	_tl_detail = VBoxContainer.new()
-	_tl_detail.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	split.add_child(_tl_detail)
-	_refresh_tl_list()
-	return split
-
-func _refresh_tl_list() -> void:
-	if GameGlobals.editor_timelines.is_empty():
-		GameGlobals.editor_timelines.append(TimelineData.new()) ## 默认示例
-	_tl_list.clear()
-	for tl in GameGlobals.editor_timelines:
-		## 【m81 修复（作者内窗口调试报错）】tl.owner 已废除（20261020）——
-		## 访问不存在字段=刷新崩溃=新建按钮"没反应"的元凶
-		_tl_list.add_item("%s [%s] %d帧" % [tl.tl_name, tl.slot, tl.ticks.size()])
-	if _tl_selected < 0 or _tl_selected >= GameGlobals.editor_timelines.size():
-		_tl_selected = 0
-	_tl_list.select(_tl_selected)
-	_refresh_tl_detail()
-
-func _on_tl_btn(t: String) -> void:
-	match t:
-		"新建":
-			var tl := TimelineData.new()
-			tl.tl_name = "timeline_%d" % (GameGlobals.editor_timelines.size() + 1)
-			GameGlobals.editor_timelines.append(tl)
-			_tl_selected = GameGlobals.editor_timelines.size() - 1
-			_refresh_tl_list()
-		"删除":
-			if _tl_selected >= 0:
-				GameGlobals.editor_timelines.remove_at(_tl_selected)
-				_tl_selected = -1
-				_refresh_tl_list()
-
-var _tl_sel_tick := -1 ## 当前选中的帧格（Flash 式横向帧条）
-
-func _refresh_tl_detail() -> void:
-	for c in _tl_detail.get_children():
-		c.queue_free()
-	if _tl_selected < 0 or _tl_selected >= GameGlobals.editor_timelines.size():
-		return
-	var tl: TimelineData = GameGlobals.editor_timelines[_tl_selected]
-	## 元数据行
-	var meta := HBoxContainer.new()
-	_tl_detail.add_child(meta)
-	## 【m77 作者 20261117】符卡触发器/伪节点图迁至「符卡」页——时间轴回归
-	## 纯弹幕表演编辑（弹幕表演的符卡承载已转移至片段/流程体系）
-	var name_e := LineEdit.new()
-	name_e.text = tl.tl_name
-	name_e.custom_minimum_size = Vector2(160, 0)
-	name_e.text_changed.connect(func(t): tl.tl_name = t.replace("#", ""))
-	meta.add_child(name_e)
-	var owner_e := LineEdit.new()
-	owner_e.text = tl.owner
-	owner_e.custom_minimum_size = Vector2(110, 0)
-	owner_e.text_changed.connect(func(t): tl.owner = t.replace("#", ""))
-	meta.add_child(owner_e)
-	var slot_o := OptionButton.new()
-	for sl in ["skill", "spell"]:
-		slot_o.add_item(sl)
-	slot_o.select(0 if tl.slot == "skill" else 1)
-	slot_o.item_selected.connect(func(i): tl.slot = "skill" if i == 0 else "spell")
-	meta.add_child(slot_o)
-	var len_s := SpinBox.new()
-	len_s.min_value = 10
-	len_s.max_value = 600
-	len_s.value = tl.length_ticks
-	len_s.prefix = "总帧(0.1s) "
-	len_s.value_changed.connect(func(v):
-		tl.length_ticks = int(v)
-		_refresh_tl_detail())
-	meta.add_child(len_s)
-	## 【Flash 式帧格条】横向滚动；每格=0.1秒，格内数字=该帧安排的事件数
-	var scroll := ScrollContainer.new()
-	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_SHOW_ALWAYS
-	scroll.custom_minimum_size = Vector2(0, 84)
-	_tl_detail.add_child(scroll)
-	var strip := HBoxContainer.new()
-	strip.add_theme_constant_override("separation", 2)
-	scroll.add_child(strip)
-	var group := ButtonGroup.new()
-	for tick in tl.length_ticks:
-		var cell := Button.new()
-		cell.toggle_mode = true
-		cell.button_group = group
-		cell.custom_minimum_size = Vector2(44, 64)
-		var cnt: int = tl.ticks.get(tick, PackedStringArray()).size()
-		cell.text = ("%d\n·%d" % [tick % 10, cnt]) if cnt > 0 else str(tick % 10)
-		cell.tooltip_text = "第 %d tick（%.1f秒）：%s" % [tick, tick / 10.0,
-			"、".join(tl.ticks.get(tick, PackedStringArray())) if cnt > 0 else "（空）"]
-		cell.button_pressed = (tick == _tl_sel_tick)
-		cell.pressed.connect(func():
-			_tl_sel_tick = tick
-			_refresh_tl_detail())
-		strip.add_child(cell)
-	## 选中帧编辑器
-	var edit := VBoxContainer.new()
-	_tl_detail.add_child(edit)
-	if _tl_sel_tick < 0 or _tl_sel_tick >= tl.length_ticks:
-		var tip := Label.new()
-		tip.text = "点击上方帧格选中一个 0.1秒 帧，然后安排弹幕事件（可多个）。"
-		edit.add_child(tip)
-		return
-	var sel_l := Label.new()
-	sel_l.text = "第 %d 帧（%.1f秒）安排：" % [_tl_sel_tick, _tl_sel_tick / 10.0]
-	edit.add_child(sel_l)
-	for ev_name in tl.ticks.get(_tl_sel_tick, PackedStringArray()):
-		var row := HBoxContainer.new()
-		edit.add_child(row)
-		var l := Label.new()
-		l.text = "  ▸ " + ev_name
-		l.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		row.add_child(l)
-		var del := Button.new()
-		del.text = "移除"
-		del.pressed.connect(func():
-			var arr: PackedStringArray = tl.ticks.get(_tl_sel_tick, PackedStringArray())
-			arr.erase(ev_name)
-			tl.set_events(_tl_sel_tick, arr)
-			_refresh_tl_detail())
-		row.add_child(del)
-	var add := HBoxContainer.new()
-	edit.add_child(add)
-	var ev_o := OptionButton.new()
-	for ev in events:
-		ev_o.add_item(ev.event_name)
-		ev_o.set_item_metadata(ev_o.item_count - 1, ev.event_name)
-	add.add_child(ev_o)
-	var addb := Button.new()
-	addb.text = "安排到该帧"
-	addb.pressed.connect(func():
-		if ev_o.selected >= 0:
-			tl.add_event(_tl_sel_tick, String(ev_o.get_item_metadata(ev_o.selected)))
-			_refresh_tl_detail())
-	add.add_child(addb)
-	var clear_b := Button.new()
-	clear_b.text = "清空该帧"
-	clear_b.pressed.connect(func():
-		tl.set_events(_tl_sel_tick, PackedStringArray())
-		_refresh_tl_detail())
-	add.add_child(clear_b)
-	var tip2 := Label.new()
-	tip2.text = "保存 .thx 时写入 danmaku/%s.gd（每0.1秒一帧→多事件；结构与弹幕事件行不同）。运行时释放属②期接线。" % tl.tl_name
-	_tl_detail.add_child(tip2)
 
 ## =============================================================
 ## 弹幕显示浮窗（作者批复 2026-10-03 终版定义）：
