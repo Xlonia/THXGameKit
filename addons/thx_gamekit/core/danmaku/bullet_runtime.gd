@@ -36,6 +36,9 @@ var alive := true
 ## 【m109 擦弹（scheme graze(距离)）】已被擦过的标签（#grazed_距离）——
 ## 每弹至多记一次擦弹；池化重置清单成员（见 reset）
 var grazed := false
+## 【m123 multi/overwrite（作者 20261123 定案：前者=出生捕获+实时改写）】
+var mul_base := 1.0 ## 出生捕获的实体倍乘标签（setdamage——发射时在范围内=初始被赋予）
+var mul_live := 1.0 ## 当前有效倍乘（multi/overwrite 逐拍求值——池化重置清单成员）
 var hidden_now := false
 ## 【谱系追踪 20261109】出生路径标签（trace_clear_probe 用）：fire=直发/
 ## fan=事件扇展开/pend=旋转延时副本/cannon=火炮接管/rp_child=repeat子代——
@@ -205,6 +208,8 @@ func setup(event: DanmakuEventData, spawn_origin: Vector2, bullet_side: int, src
 	repeat_enabled = true
 	frozen_ok = false
 	grazed = false ## 【m109 擦弹标签入池化重置清单（条件赋值字段纪律）】
+	mul_base = float(src.dmg_mul_tag) if src != null and "dmg_mul_tag" in src else 1.0 ## 【m123】出生捕获实体标签
+	mul_live = mul_base ## 池化重置清单（条件赋值字段纪律）
 	damage_override = -1 ## 【m74】继承覆盖入池化重置清单（条件赋值字段纪律）
 	## 【0.0.9·池毒根因③（作者假说证实：回收×setup 冲突）20261105】
 	## Functed 类是积分器：forward += speed·dt。尸体携带旧生前积分（满航程
@@ -519,10 +524,18 @@ func cur_dir() -> Vector2:
 		return velocity.normalized()
 	return dir
 
+## 【m123】倍乘逐拍求值（多规则热路径快速门=0 规则零成本）
+func update_mul() -> void:
+	if FieldRules.multi_count() <= 0:
+		mul_live = mul_base
+		return
+	mul_live = FieldRules.multi_at(pos, mul_base)
+
 func update(dt: float) -> bool:
 	if not alive:
 		return false
 	var is_sampled_call := dt > 1.5 ## 战场 dt 单位=帧：逐帧=1.0（假）、采样帧=N>=2.0（真）
+	update_mul() ## 【m123】multi/overwrite 逐拍（上一拍位置——一帧滞容差）
 	t += dt
 	_alive_frames += dt
 	if is_sampled_call:
@@ -1000,13 +1013,18 @@ func _has_hard_lock_loss(_tp: Vector2, dist: float) -> bool:
 ## =============================================================
 ## 当前有效伤害（激光随预警阶段 -1；其余=出生时求值的个体伤害——式/命题 20261019）
 func hit_damage() -> int:
+	## 【m123 倍乘修饰（作者：修饰之后的结果取整）】有效伤害=roundi(基础×mul)；
+	## 下游消费点=被弹哈希分组键（hit_damage×4）+扣血——修饰随此生效
+	var raw: int
 	if damage_override >= 0:
-		return damage_override
-	if ev.tag == DanmakuEventData.TAG_LASER:
+		raw = damage_override
+	elif ev.tag == DanmakuEventData.TAG_LASER:
 		if t <= alarm_now:
 			return -1
-		return mini(16, dmg_now)
-	return dmg_now
+		raw = mini(16, dmg_now)
+	else:
+		raw = dmg_now
+	return roundi(float(raw) * maxf(mul_live, 0.0))
 
 ## 碰撞半径（哈希圆判定用；激光=线宽）
 func hit_radius() -> float:

@@ -17,6 +17,7 @@ const PART_MOVE := 2
 
 enum Kind { PLAYER, MEMBER, PRIVATE, ENEMY } ## 自机/队伍成员/杂兵/敌角色
 
+var dmg_mul_tag := 1.0 ## 【m123 setdamage】实体倍乘标签（章节操作赋予；弹幕出生捕获为基准倍乘——作者 20261123）
 var db: Dictionary = {}
 var side := 0
 var kind := Kind.MEMBER

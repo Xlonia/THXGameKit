@@ -20,9 +20,10 @@ class_name FieldRules
 ## 解除条件：进入范围即应用、超出自动解除（使用方按拍查询即天然获得该语义）。
 ## =============================================================
 
-static var _rules: Array = []        ## 规则表（注册序）
+static var _rules: Array = []        ## 规则表（注册序——multi 覆盖先者依赖此序）
 static var _by_id: Dictionary = {}   ## id → 规则
 static var _auto := 0                ## 无 ID 时自动编号
+static var _multi_n := 0             ## multi 规则计数（弹幕热路径快速门）
 
 ## 注册一条场地规则。字段（全部可选除 tag 外）：
 ##   id(String) 唯一键（缺省=tag_自动号）/ tag(String) 本地化键名
@@ -33,6 +34,17 @@ static var _auto := 0                ## 无 ID 时自动编号
 ##   mutual(Array[String]) 互斥：本规则在活跃区间内覆盖这些 id
 ##   require(Array[String]) 需要：这些 id 至少一个活跃时本规则才可能活跃
 ## 返回实际 id。
+static func _to_multi(v) -> float:
+	## multi 单元格解析（浮点；空/缺失=null=非倍乘规则）
+	if v == null:
+		return -1.0
+	if v is float or v is int:
+		return float(v)
+	var s := str(v).strip_edges()
+	if s == "":
+		return -1.0
+	return float(s) if s.is_valid_float() else -1.0
+
 static func register(rule: Dictionary) -> String:
 	var id := String(rule.get("id", ""))
 	if id == "" or _by_id.has(id):
@@ -55,18 +67,25 @@ static func register(rule: Dictionary) -> String:
 		"mutual": rule.get("mutual", []),
 		"require": rule.get("require", []),
 		"smooth": rule.get("smooth", null),  ## smooth 子框（过渡带=子框边→主框边）
+		"multi": _to_multi(rule.get("multi")),  ## 倍乘数值（null=非倍乘规则——作者 20261123）
+		"overwrite": bool(rule.get("overwrite", false)),  ## 覆盖=数值上的覆盖先者（区别于 mutual 整体覆盖）
 	}
 	_rules.append(r)
 	_by_id[id] = r
+	if float(r["multi"]) >= 0.0:
+		_multi_n += 1
 	return id
 
 static func unregister(id: String) -> void:
+	if _by_id.has(id) and float(_by_id[id].get("multi", -1.0)) >= 0.0:
+		_multi_n -= 1
 	if not _by_id.has(id):
 		return
 	_rules.erase(_by_id[id])
 	_by_id.erase(id)
 
 static func clear() -> void:
+	_multi_n = 0
 	_rules.clear()
 	_by_id.clear()
 	_auto = 0
@@ -192,6 +211,39 @@ static func is_active(id: String, pos: Vector2, target: String = "chara") -> boo
 	return false
 
 ## =============================================================
+## 【m123 multi/overwrite 倍乘关系（作者 20261123 定案）】
+## 覆盖(overwrite)=**数值上的**覆盖先者（直接覆写，先注册先者胜——区别于
+## mutual 的整体覆盖先者）；不覆盖=叠加（乘）；smooth=按强度渐变交接
+## （突变=无 smooth）。base=出生捕获的实体倍乘标签（setdamage——发射时
+## 在范围内=初始被赋予，此后逐拍由本求值改写=前者）。
+## =============================================================
+static func multi_count() -> int:
+	## 已注册 multi 规则数（弹幕热路径快速门——0=零成本跳过）
+	return _multi_n
+
+static func multi_at(pos: Vector2, base: float = 1.0) -> float:
+	var act := active_for(pos, "danmaku")
+	if act.is_empty():
+		return base
+	var acc := base
+	var covered := false
+	for r in act:
+		var val: float = float(r.get("multi", -1.0))
+		if val < 0.0:
+			continue
+		var s := smooth_strength(r, pos)
+		if s <= 0.0:
+			continue
+		if bool(r.get("overwrite", false)):
+			if covered:
+				continue ## 数值覆盖先者——后注册的覆盖让位
+			acc = lerpf(acc, val, s) ## 覆写（smooth=渐变交接；s=1=突变覆写）
+			covered = true
+		else:
+			acc *= lerpf(1.0, val, s) ## 叠加（smooth=向倍乘渐变）
+	return acc
+
+## =============================================================
 ## 【itemget 磁吸（scheme 1246：itemget(角色选择器，范围，解除条件)）】
 ## 为角色设定磁吸效果——半径范围内的道具自动吸附。内核只挂状态（meta），
 ## 道具实体系统由各游戏宿主实现（THX75=_update_drops 读取本状态）。
@@ -284,6 +336,8 @@ static func load_csv(path: String) -> int:
 			"mutual": String(d.get("mutual", "")).split(";", false),
 			"require": String(d.get("require", "")).split(";", false),
 			"ops": String(d.get("ops", "")).split(";", false),
+			"multi": d.get("multi", ""),
+			"overwrite": String(d.get("overwrite", "0")).strip_edges() in ["1", "true"],
 		})
 		n += 1
 	f.close()
@@ -317,7 +371,7 @@ static func save_csv_rows(rows: Array, path: String) -> String:
 	var f := FileAccess.open(path, FileAccess.WRITE)
 	if f == null:
 		return "写盘失败：%d" % FileAccess.get_open_error()
-	f.store_line("id,tag,chara,danmaku,box,sattle,mutual,require,ops")
+	f.store_line("id,tag,chara,danmaku,box,sattle,mutual,require,ops,multi,overwrite")
 	for rd in rows:
 		var r: Dictionary = rd
 		var box_arr = _str_to_box(String(r.get("box", "")))
@@ -326,7 +380,8 @@ static func save_csv_rows(rows: Array, path: String) -> String:
 			String(r.get("chara", "0")), String(r.get("danmaku", "0")),
 			_box_to_str(box_arr), _box_to_str(_str_to_box(String(r.get("sattle", "")))),
 			String(r.get("mutual", "")).replace(",", ""), String(r.get("require", "")).replace(",", ""),
-			String(r.get("ops", "")),
+			String(r.get("ops", "")), String(r.get("multi", "")),
+			"1" if String(r.get("overwrite", "0")).strip_edges() in ["1", "true"] else "0",
 		]
 		var line: Array = []
 		for c in cells:
@@ -348,5 +403,7 @@ static func save_csv(path: String) -> String:
 			"box": _box_to_str(box_arr), "sattle": _box_to_str(r["sattle"]),
 			"mutual": _list_to_str(r["mutual"]), "require": _list_to_str(r["require"]),
 			"ops": _list_to_str(r["ops"]),
+			"multi": (str(r["multi"]) if float(r["multi"]) >= 0.0 else ""),
+			"overwrite": "1" if bool(r["overwrite"]) else "0",
 		})
 	return save_csv_rows(rows, path)

@@ -783,7 +783,7 @@ func _build_field_page() -> ScrollContainer:
 	box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	sc.add_child(box)
 	var title := Label.new()
-	title.text = "场地规则（区域=框线，缺省段=条带；sattle=框内不应用；mutual=覆盖；require=需要）"
+	title.text = "场地规则（区域=框线，缺省段=条带；sattle=框内不应用；mutual=整体覆盖先者；require=需要；multi=倍乘+overwrite=数值覆盖先者——作者 20261123）"
 	title.add_theme_font_size_override("font_size", 15)
 	box.add_child(title)
 	var row0 := HBoxContainer.new()
@@ -811,6 +811,7 @@ func _build_field_page() -> ScrollContainer:
 	var col_fields := [
 		["id", "ID"], ["tag", "本地化键名"], ["chara", "处理角色(1/0)"], ["danmaku", "处理弹幕(1/0)"],
 		["box", "主范围 x0,y0,x1,y1"], ["sattle", "特许范围 x0,y0,x1,y1"], ["mutual", "互斥(分号)"], ["require", "需要(分号)"],
+		["multi", "倍乘值(multi——空=非倍乘规则)"], ["overwrite", "覆盖(1=数值先者)"],
 	]
 	var editors := {}
 	for cf in col_fields:
