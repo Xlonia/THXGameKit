@@ -424,7 +424,7 @@ func _build_ui() -> void:
 	var pagerow := HBoxContainer.new()
 	left.add_child(pagerow)
 	var group := ButtonGroup.new()
-	for pg in [["danmaku", "弹幕"], ["chara", "角色"], ["privates", "杂兵"], ["timeline", "时间轴"], ["spell", "符卡"], ["clip", "片段"], ["formation", "排布"], ["field", "场地"]]:
+	for pg in [["danmaku", "弹幕"], ["chara", "角色"], ["privates", "杂兵"], ["timeline", "时间轴"], ["spell", "符卡"], ["clip", "片段"], ["formation", "排布"], ["field", "场地"], ["chapter", "章节"]]:
 		var b := Button.new()
 		b.text = pg[1]
 		b.toggle_mode = true
@@ -449,7 +449,7 @@ func _build_ui() -> void:
 	left.add_child(_asset_users)
 	_refresh_assets()
 	## 右：三个主页面
-	_pages = { "danmaku": _build_danmaku_page(), "chara": ScrollContainer.new(), "privates": ScrollContainer.new(), "timeline": ScrollContainer.new(), "spell": ScrollContainer.new(), "clip": ScrollContainer.new(), "formation": _build_formation_page(), "field": ScrollContainer.new() }
+	_pages = { "danmaku": _build_danmaku_page(), "chara": ScrollContainer.new(), "privates": ScrollContainer.new(), "timeline": ScrollContainer.new(), "spell": ScrollContainer.new(), "clip": ScrollContainer.new(), "formation": _build_formation_page(), "field": ScrollContainer.new(), "chapter": ScrollContainer.new() }
 	for k in _pages:
 		_pages[k].size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		_pages[k].size_flags_vertical = Control.SIZE_EXPAND_FILL
@@ -767,6 +767,8 @@ func _show_main_page(key: String) -> void:
 		_pages["clip"].add_child(_build_clip_page()) ## 【m86 片段页】
 	if key == "field" and _pages["field"].get_child_count() == 0:
 		_pages["field"].add_child(_build_field_page()) ## 【m109 场地规则页】
+	if key == "chapter" and _pages["chapter"].get_child_count() == 0:
+		_pages["chapter"].add_child(_build_chapter_page()) ## 【m116 章节页（0.2.0 第一批）】
 
 ## —— 场地规则页（m109：scheme 弹幕编辑器新二"场地规则"节——
 ## 规则头 tag/ID+处理对象+规则范围（缺省段=条带）+sattle 特许+mutual/require+
@@ -864,14 +866,169 @@ func _build_field_page() -> ScrollContainer:
 			if idx < _fr_rows.size():
 				for cf in col_fields:
 					_fr_rows[idx][cf[0]] = (editors[cf[0]] as LineEdit).text.strip_edges()
-		var err: String = FieldRules.save_csv_rows(_fr_rows, THXKit.kpath("data/field_rules.csv"))
+		var err: String = FieldRules.save_csv_rows(_fr_rows, THXKit.kpath("res://addons/thx_gamekit/data/field_rules.csv"))
 		if err == "":
 			FieldRules.clear()
-			var n: int = FieldRules.load_csv(THXKit.kpath("data/field_rules.csv"))
+			var n: int = FieldRules.load_csv(THXKit.kpath("res://addons/thx_gamekit/data/field_rules.csv"))
 			status.text = "已保存并应用（%d 条规则活跃）" % n
 		else:
 			status.text = "保存失败：" + err)
 	_fr_rows = FieldRules.csv_rows()
+	refresh_list.call()
+	return sc
+
+## —— 章节页（m116·0.2.0 第一批：章节主表编辑——scheme"关卡设置/总剪辑/章节"节）
+## 数据=chapters.csv（keep 导入）：id/name/order/transition(continue|next)/
+## loop(flow|trigged|slug|loop)/goto/skip/select/fix/music_plan/track/start/
+## entrance_clips(分号片段名)/local_triggers/globe_triggers(分号"类型:脚本")/
+## enemypcs/boss_data——角色出场条目/运动关键帧/动画剪辑=后续批消费
+var _ch_rows: Array = []
+var _ch_list: ItemList = null
+
+func _build_chapter_page() -> ScrollContainer:
+	var sc := ScrollContainer.new()
+	sc.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	sc.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	var box := VBoxContainer.new()
+	box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	sc.add_child(box)
+	var title := Label.new()
+	title.text = "章节（总剪辑=关卡时间轴；章节=组成单元。转场 continue/next；循环 flow/trigged/slug/loop；逻辑 goto=目标[|条件]/skip=id[|条件];…/select=条件/fix=起始,结束（the_start~the_fin）；音乐方案 continue/hard/soft/sfx/loop:A[,B]；tick=章节局部帧）"
+	title.add_theme_font_size_override("font_size", 14)
+	box.add_child(title)
+	var row0 := HBoxContainer.new()
+	box.add_child(row0)
+	var newb := Button.new()
+	newb.text = "新建章节"
+	row0.add_child(newb)
+	var delb := Button.new()
+	delb.text = "删除选中"
+	row0.add_child(delb)
+	var upb := Button.new()
+	upb.text = "上移"
+	row0.add_child(upb)
+	var saveb := Button.new()
+	saveb.text = "保存并应用（chapters.csv）"
+	row0.add_child(saveb)
+	var reloadb := Button.new()
+	reloadb.text = "重读文件"
+	row0.add_child(reloadb)
+	_ch_list = ItemList.new()
+	_ch_list.custom_minimum_size = Vector2(760, 150)
+	box.add_child(_ch_list)
+	var grid := GridContainer.new()
+	grid.columns = 4
+	grid.add_theme_constant_override("h_separation", 12)
+	box.add_child(grid)
+	var col_fields := [
+		["id", "ID"], ["name", "章节名"], ["order", "顺序"], ["transition", "转场(continue/next)"],
+		["loop", "循环(flow/trigged/slug/loop)"], ["goto", "跳转(目标[|条件])"], ["skip", "跳过(id[|条件];…)"], ["select", "抉择(条件)"],
+		["fix", "并列混合(起始,结束)"], ["music_plan", "音乐方案"], ["music_track", "音乐轨"], ["music_start", "起始点(秒)"],
+		["enemypcs", "章节敌机出场数"], ["boss_data", "boss 数据(键=值;…)"],
+		["background", "背景画面(png/bmp 名或路径)"], ["moves", "运动关键帧(名@tick:x,y|cx,cy;…)"],
+	]
+	var editors := {}
+	for cf in col_fields:
+		var l := Label.new()
+		l.text = cf[1]
+		grid.add_child(l)
+		var e := LineEdit.new()
+		e.custom_minimum_size = Vector2(180, 0)
+		grid.add_child(e)
+		editors[cf[0]] = e
+	var l_ch := Label.new()
+	l_ch.text = "角色出场（名:进:出:x,y:运动;…；tick=章节局部帧）"
+	grid.add_child(l_ch)
+	var e_chars := LineEdit.new()
+	e_chars.custom_minimum_size = Vector2(430, 0)
+	grid.add_child(e_chars)
+	var l2 := Label.new()
+	l2.text = "入场片段（分号=片段名序列）"
+	grid.add_child(l2)
+	var e_clips := LineEdit.new()
+	e_clips.custom_minimum_size = Vector2(430, 0)
+	grid.add_child(e_clips)
+	var l3 := Label.new()
+	l3.text = "章节触发器（分号=类型:脚本；globe_/l_ 前缀；starter/finner/ticker/threshold/feedback）"
+	grid.add_child(l3)
+	var e_loc := LineEdit.new()
+	e_loc.custom_minimum_size = Vector2(430, 0)
+	grid.add_child(e_loc)
+	var e_glb := LineEdit.new()
+	e_glb.custom_minimum_size = Vector2(430, 0)
+	grid.add_child(e_glb)
+	var status := Label.new()
+	status.text = ""
+	status.add_theme_font_size_override("font_size", 12)
+	box.add_child(status)
+
+	var refresh_list := func():
+		_ch_list.clear()
+		for i in _ch_rows.size():
+			var r: Dictionary = _ch_rows[i]
+			_ch_list.add_item("%s（%s） 顺序%s %s/%s 片段[%s]" % [str(r.get("id", "")), str(r.get("name", "")),
+				str(r.get("order", "")), str(r.get("transition", "")), str(r.get("loop", "")), str(r.get("entrance_clips", ""))])
+
+	var load_from_row := func(idx: int):
+		if idx < 0 or idx >= _ch_rows.size():
+			return
+		var r: Dictionary = _ch_rows[idx]
+		for cf in col_fields:
+			(editors[cf[0]] as LineEdit).text = str(r.get(cf[0], ""))
+		(e_clips as LineEdit).text = str(r.get("entrance_clips", ""))
+		(e_chars as LineEdit).text = str(r.get("chars", ""))
+		(e_loc as LineEdit).text = str(r.get("local_triggers", ""))
+		(e_glb as LineEdit).text = str(r.get("globe_triggers", ""))
+
+	newb.pressed.connect(func():
+		_ch_rows.append({"id": "chapter_%d" % (_ch_rows.size() + 1), "name": "新章节", "order": str(_ch_rows.size() + 1),
+			"transition": "next", "loop": "flow", "goto": "", "skip": "", "select": "", "fix": "",
+			"music_plan": "", "music_track": "", "music_start": "", "enemypcs": "", "boss_data": "",
+			"entrance_clips": "", "local_triggers": "", "globe_triggers": "", "background": "", "moves": ""})
+		refresh_list.call()
+		_ch_list.select(_ch_rows.size() - 1)
+		load_from_row.call(_ch_rows.size() - 1))
+	delb.pressed.connect(func():
+		var sel := _ch_list.get_selected_items()
+		if sel.is_empty():
+			status.text = "先选中要删除的章节"
+			return
+		_ch_rows.remove_at(sel[0])
+		status.text = "已删除（保存后生效）"
+		refresh_list.call())
+	upb.pressed.connect(func():
+		var sel := _ch_list.get_selected_items()
+		if sel.is_empty() or sel[0] == 0:
+			return
+		var i: int = sel[0]
+		var rowtmp = _ch_rows[i - 1]
+		_ch_rows[i - 1] = _ch_rows[i]
+		_ch_rows[i] = rowtmp
+		refresh_list.call()
+		_ch_list.select(i - 1))
+	reloadb.pressed.connect(func():
+		_ch_rows = ChapterData.csv_rows()
+		refresh_list.call()
+		status.text = "已重读 chapters.csv（%d 章）" % _ch_rows.size())
+	saveb.pressed.connect(func():
+		var sel := _ch_list.get_selected_items()
+		if not sel.is_empty():
+			var idx: int = sel[0]
+			if idx < _ch_rows.size():
+				for cf in col_fields:
+					_ch_rows[idx][cf[0]] = (editors[cf[0]] as LineEdit).text.strip_edges()
+				_ch_rows[idx]["entrance_clips"] = (e_clips as LineEdit).text.strip_edges()
+				_ch_rows[idx]["chars"] = (e_chars as LineEdit).text.strip_edges()
+				_ch_rows[idx]["local_triggers"] = (e_loc as LineEdit).text.strip_edges()
+				_ch_rows[idx]["globe_triggers"] = (e_glb as LineEdit).text.strip_edges()
+		var err: String = ChapterData.save_csv_rows(_ch_rows, THXKit.kpath("res://addons/thx_gamekit/data/chapters.csv"))
+		if err == "":
+			ChapterData.clear()
+			var n: int = ChapterData.load_csv(THXKit.kpath("res://addons/thx_gamekit/data/chapters.csv"))
+			status.text = "已保存并应用（%d 章活跃）" % n
+		else:
+			status.text = "保存失败：" + err)
+	_ch_rows = ChapterData.csv_rows()
 	refresh_list.call()
 	return sc
 
