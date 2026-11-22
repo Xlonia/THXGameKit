@@ -62,6 +62,12 @@ static func resolve(spec: String, caster, arena) -> Array:
 					if _kind_name(e2) == tname:
 						out2.append(e2)
 				return out2
+			"getallenemy":
+				## scheme 章节选择器：遍历章节所有敌机（复数——含杂兵，角色=成员+杂兵）
+				return _enemy_ents(arena, caster)
+			"getenemy":
+				## scheme 章节选择器：获取章节特定敌机（条件式——同 iterate 语义）
+				return _filter_prop(_enemy_ents(arena, caster), inner, caster)
 			_:
 				return []
 	## —— 单词/单词() 类（可带空括号）——

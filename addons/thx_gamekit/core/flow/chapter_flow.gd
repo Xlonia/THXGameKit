@@ -29,6 +29,7 @@ var done := false               ## 完结门（the_fin 后不再重入）
 var run: Array = []             ## 当前并行成员（行副本+运行态 _start/_until/_loops）
 var skip_plans: Array = []      ## 全部 skip 单元（{id,cond}）
 var trig_memo: Dictionary = {}  ## 触发器单元格文本 → 解析（并集扫描缓存）
+var _thr_memo: Dictionary = {}  ## 阈值触发器输入快照（真 setter 语义——输入不变跳过求值）
 var fb_seen: Dictionary = {}    ## feedback 事件 → 上一拍累计
 var chars_state: Dictionary = {} ## 章节id+名 → {entered:bool}
 var frames := 0                 ## 自有帧时基（tick 自增）
@@ -60,6 +61,7 @@ func start_rows(ordered_rows: Array) -> void:
 	chars_state.clear()
 	fb_seen.clear()
 	trig_memo.clear()
+	_thr_memo.clear()
 	skip_plans = []
 	_phy_state.clear()
 	for r in rows:
@@ -263,19 +265,20 @@ func trig_parsed(cell: String) -> Array:
 		trig_memo[cell] = ChapterData.parse_triggers(cell)
 	return trig_memo[cell]
 
-## 条件求值（goto/skip/select 与 threshold 共用语境；>> → > 转义同 threshold）
-func cond(expr: String, mem: Dictionary) -> bool:
-	var ex := DanmakuExpr.new()
-	var names := PackedStringArray(["time_frames", "chaptertime", "chapterloop", "graze", "hit",
+## 条件语境变量全集（阈值引用检测用）
+func _cond_vars() -> PackedStringArray:
+	return PackedStringArray(["time_frames", "chaptertime", "chapterloop", "graze", "hit",
 		"miss", "spell", "danmaku", "shoot", "privatehit", "midboss", "dochuhit", "clear"])
-	if not ex.compile(expr.replace(">>", ">").replace("<<", "<"), names):
-		return false
+
+## 条件输入快照（threshold 真 setter 语义共用——scheme"检测每个脚本涉及的
+## 数据变化"；goto/skip/select 共用同一语境）
+func _cond_vals(mem: Dictionary) -> Dictionary:
 	var start_f := frames
 	var loops := 0.0
 	if not mem.is_empty():
 		start_f = int(mem.get("_start_frame", frames))
 		loops = float(mem.get("_loops", 0))
-	var vals := {
+	return {
 		"time_frames": float(frames),
 		"chaptertime": float(frames - start_f),
 		"chapterloop": loops,
@@ -290,7 +293,15 @@ func cond(expr: String, mem: Dictionary) -> bool:
 		"dochuhit": 1.0 if BehaviorScore.level_flag("dochuhit") else 0.0, ## 关卡级认定标签（幂等——作者 20261123）
 		"clear": float(BehaviorScore.read("clear")),
 	}
-	return ex.execute_dict(vals, 0.0) > 0.5
+
+## 条件求值（goto/skip/select 与 threshold 共用语境；>> → > 转义同 threshold；
+## vals=预取快照可透传——threshold memo 复用同一份）
+func cond(expr: String, mem: Dictionary, vals: Dictionary = {}) -> bool:
+	var ex := DanmakuExpr.new()
+	if not ex.compile(expr.replace(">>", ">").replace("<<", "<"), _cond_vars()):
+		return false
+	var v := vals if not vals.is_empty() else _cond_vals(mem)
+	return ex.execute_dict(v, 0.0) > 0.5
 
 func triggers_tick(mem: Dictionary) -> void:
 	var cells: Array = []
@@ -303,7 +314,33 @@ func triggers_tick(mem: Dictionary) -> void:
 				"ticker":
 					op_requested.emit(str(tr["script"]), "", "ticker")
 				"threshold":
-					if cond(str(tr["cond"]), mem):
+					## 【m122 真 setter 语义（scheme：检测每个脚本涉及的数据变化）】
+					## 快照=条件**实际引用**的变量（uses_variable——time_frames 等
+					## 恒变值不被未引用条件拖成每拍求值）；引用输入不变=跳过求值，
+					## 执行点=引用输入变化且条件为真；上下沿消费方管理不变
+					var tkey: String = tcell + "#" + str(tr["cond"]) + "#" + str(tr["script"])
+					if not _thr_memo.has(tkey):
+						var ex0 := DanmakuExpr.new()
+						var refs: Array = []
+						if ex0.compile(str(tr["cond"]).replace(">>", ">").replace("<<", "<"), _cond_vars()):
+							for vname in ["time_frames", "chaptertime", "chapterloop", "graze", "hit",
+								"miss", "spell", "danmaku", "shoot", "privatehit", "midboss", "dochuhit", "clear"]:
+								if ex0.uses_variable(vname):
+									refs.append(vname)
+						_thr_memo[tkey] = {"refs": refs, "vals": {}}
+					var entry: Dictionary = _thr_memo[tkey]
+					var cur := _cond_vals(mem)
+					var newvals := {}
+					for vname2 in (entry["refs"] as Array):
+						newvals[vname2] = cur[vname2]
+					var changed: bool = (entry["refs"] as Array).is_empty() or (entry["vals"] as Dictionary).is_empty()
+					if not changed:
+						for vname3 in newvals:
+							if float(newvals[vname3]) != float((entry["vals"] as Dictionary).get(vname3, newvals[vname3])):
+								changed = true
+								break
+					entry["vals"] = newvals
+					if changed and cond(str(tr["cond"]), mem, cur):
 						op_requested.emit(str(tr["script"]), "", "threshold")
 				"feedback":
 					var ev := str(tr["cond"])
