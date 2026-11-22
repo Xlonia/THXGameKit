@@ -114,6 +114,10 @@ static func resolve(spec: String, caster, arena) -> Array:
 			return [t6] if t6 != null else []
 		"enemies":
 			return _enemy_ents(arena, caster) ## 【m94 角色定义】含杂兵（角色=成员+杂兵）
+		"getallenemy":
+			return _enemy_ents(arena, caster) ## scheme 章节选择器（单词/空括号形）
+		"getenemy":
+			return _enemy_ents(arena, caster) ## 无条件形=全部章节敌机（条件形走带参分支）
 	return []
 
 ## —— 内部：实体池（角色=成员+杂兵；不含已死）——
