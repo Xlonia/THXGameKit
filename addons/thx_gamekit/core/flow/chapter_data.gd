@@ -72,7 +72,7 @@ static func ordered() -> Array:
 ## =============================================================
 const CSV_PATH_DEFAULT := "res://addons/thx_gamekit/data/chapters.csv"
 const COLUMNS := ["id", "name", "order", "transition", "loop", "goto", "skip", "select", "fix",
-	"music_plan", "music_track", "music_start", "entrance_clips", "local_triggers",
+	"music_plan", "music_track", "music_start", "entrance_clips", "chars", "local_triggers",
 	"globe_triggers", "enemypcs", "boss_data"]
 
 static func load_csv(path: String = CSV_PATH_DEFAULT) -> int:
@@ -149,3 +149,53 @@ static func save_csv_rows(rows: Array, path: String = CSV_PATH_DEFAULT) -> Strin
 		f.store_line(",".join(line))
 	f.close()
 	return ""
+
+## =============================================================
+## 【触发器/角色条目解析（m117——宿主章节运行时消费）】
+## 触发器单元格="类型:文本"分号多条：
+##   starter/finner/ticker/feedback:事件=脚本 / threshold:条件=脚本
+##   （threshold/feedback 两段式=scheme"上段触发条件/下段执行代码"）
+## 角色条目单元格="名:进tick:出tick:x,y:运动"分号多条（运动=占位字段）
+## =============================================================
+static func parse_triggers(cell: String) -> Array:
+	var out: Array = []
+	for seg in cell.split(";", false):
+		var t := seg.strip_edges()
+		if t == "":
+			continue
+		var ci := t.find(":")
+		if ci < 0:
+			out.append({"type": "ticker", "text": t}) ## 无类型=逐帧文本兜底
+			continue
+		var ty := t.substr(0, ci).strip_edges().to_lower()
+		var rest := t.substr(ci + 1).strip_edges()
+		if ty == "threshold" or ty == "feedback":
+			## 两段式：条件=脚本（feedback=事件=脚本）
+			var si := rest.find("=")
+			if si < 0:
+				out.append({"type": ty, "cond": rest, "script": ""})
+			else:
+				out.append({"type": ty, "cond": rest.substr(0, si).strip_edges(),
+					"script": rest.substr(si + 1).strip_edges()})
+		else:
+			out.append({"type": ty, "script": rest})
+	return out
+
+static func parse_char_entries(cell: String) -> Array:
+	var out: Array = []
+	for seg in cell.split(";", false):
+		var t := seg.strip_edges()
+		if t == "":
+			continue
+		var parts := t.split(":")
+		if parts.size() < 3:
+			continue
+		var pos := Vector2(200, 200)
+		if parts.size() >= 4:
+			var xy := parts[3].split(",")
+			if xy.size() == 2:
+				pos = Vector2(float(xy[0]), float(xy[1]))
+		out.append({"name": parts[0].strip_edges(), "enter": int(parts[1]) if parts.size() > 1 else 0,
+			"exit": int(parts[2]) if parts.size() > 2 else -1, "pos": pos,
+			"move": parts[4].strip_edges() if parts.size() > 4 else "stay"})
+	return out

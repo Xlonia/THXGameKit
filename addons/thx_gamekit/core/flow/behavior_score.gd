@@ -48,3 +48,7 @@ static func set_noreset(event: String, enabled: bool) -> void:
 ## 阈值触发器查询：某行为累计是否到达阈值（上下沿由消费方管理）
 static func reached(event: String, threshold: int) -> bool:
 	return int(_scores.get(event, 0)) >= threshold
+
+## 【m117 threshold 条件读取】不重置的累计读数（阈值表达式变量）
+static func read(event: String) -> int:
+	return int(_scores.get(event, 0))
