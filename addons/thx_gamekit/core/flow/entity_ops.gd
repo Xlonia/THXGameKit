@@ -34,9 +34,10 @@ static func resolve(spec: String, caster, arena) -> Array:
 	var s := spec.strip_edges()
 	if s == "":
 		return []
-	## —— 括号函数式（先于单词判定）——
+	## —— 括号函数式（先于单词判定；空括号=单词类放行——m120 修：player()
+	## 等空括号单词选择器曾误入带参分支落 _:=[] 全断）——
 	var lp := s.find("(")
-	if lp >= 0 and s.ends_with(")"):
+	if lp >= 0 and s.ends_with(")") and s.substr(lp + 1, s.length() - lp - 2).strip_edges() != "":
 		var fname: String = s.substr(0, lp).strip_edges().to_lower()
 		var inner: String = s.substr(lp + 1, s.length() - lp - 2).strip_edges()
 		match fname:
@@ -69,8 +70,15 @@ static func resolve(spec: String, caster, arena) -> Array:
 		"self":
 			return [caster] if caster != null else []
 		"player":
-			for e4 in _all_ents(arena, caster):
-				if bool(e4.get("is_player")):
+			## 【m120 修】自机=side==0 首个存活实体（原查不存在的 is_player 属性
+			## 恒空→选择器无目标）；直扫实体池不受"选取其他"排除影响——
+			## 玩家自机=显式绝对选择器（damage(player()) 作用于自身合法）
+			if arena == null or not ("entities" in arena):
+				return []
+			for e4 in arena.entities:
+				if e4 == null or not is_instance_valid(e4) or e4.get("dead"):
+					continue
+				if int(e4.get("side")) == 0:
 					return [e4]
 			return []
 		"closest", "closet", "nearest":

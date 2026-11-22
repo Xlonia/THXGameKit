@@ -7,11 +7,11 @@ class_name BehaviorScore
 ## 用于关卡显示的行为累计数，比如擦弹）。
 ## 章节操作 behaviorReset 可在不结算的前提下重置所有行为累计计数。
 ## 反馈触发器事件（注册才启用）：bullseye/hit/privatehit/spell/playerspell/
-## leftless/miss/danmaku/shoot/dochu（道中boss被彻底击败——东方社区习惯，作者 20261122 改名，原 michihit）/clear。
+## leftless/miss/danmaku/shoot/midboss（道中boss被彻底击败——语源破案 michihit=道中みち+hit，作者 20261122 定名）/dochuhit（道中打了——同源新键，宿主挂点待作者定义语义）/clear。
 ## =============================================================
 
 const EVENTS := ["bullseye", "hit", "privatehit", "spell", "playerspell", "leftless",
-	"miss", "danmaku", "shoot", "dochu", "clear", "graze"]
+	"miss", "danmaku", "shoot", "midboss", "dochuhit", "clear", "graze"]
 
 static var _scores: Dictionary = {}        ## 行为名 → 累计（章节内）
 static var _display: Dictionary = {}       ## 行为名 → 显示副本累计（_display 口径）

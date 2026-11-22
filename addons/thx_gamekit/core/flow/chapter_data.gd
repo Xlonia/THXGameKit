@@ -15,7 +15,7 @@ class_name ChapterData
 ##       起始=the_start，结束=the_fin）。
 ## 触发器（globe_/l_ 前缀）：starter/finner/ticker/threshold/feedback+
 ##       反馈事件（bullseye/hit/privatehit/spell/playerspell/leftless/miss/
-##       danmaku/shoot/dochu/clear——注册才启用）。
+##       danmaku/shoot/midboss/dochuhit/clear——注册才启用）。
 ## =============================================================
 
 const NAMES_ORDER_FIELD := "order"

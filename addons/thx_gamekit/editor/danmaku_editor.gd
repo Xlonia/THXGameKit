@@ -882,6 +882,7 @@ func _build_field_page() -> ScrollContainer:
 ## enemypcs/boss_data——角色出场条目/运动关键帧/动画剪辑=后续批消费
 var _ch_rows: Array = []
 var _ch_list: ItemList = null
+var _ch_strip: Control = null ## 总剪辑时间轴条（m120 可视化起步件）
 
 func _build_chapter_page() -> ScrollContainer:
 	var sc := ScrollContainer.new()
@@ -914,6 +915,7 @@ func _build_chapter_page() -> ScrollContainer:
 	_ch_list = ItemList.new()
 	_ch_list.custom_minimum_size = Vector2(760, 150)
 	box.add_child(_ch_list)
+
 	var grid := GridContainer.new()
 	grid.columns = 4
 	grid.add_theme_constant_override("h_separation", 12)
@@ -966,6 +968,8 @@ func _build_chapter_page() -> ScrollContainer:
 			var r: Dictionary = _ch_rows[i]
 			_ch_list.add_item("%s（%s） 顺序%s %s/%s 片段[%s]" % [str(r.get("id", "")), str(r.get("name", "")),
 				str(r.get("order", "")), str(r.get("transition", "")), str(r.get("loop", "")), str(r.get("entrance_clips", ""))])
+		if _ch_strip != null:
+			_ch_strip.queue_redraw()
 
 	var load_from_row := func(idx: int):
 		if idx < 0 or idx >= _ch_rows.size():
@@ -977,6 +981,51 @@ func _build_chapter_page() -> ScrollContainer:
 		(e_chars as LineEdit).text = str(r.get("chars", ""))
 		(e_loc as LineEdit).text = str(r.get("local_triggers", ""))
 		(e_glb as LineEdit).text = str(r.get("globe_triggers", ""))
+
+	## —— 总剪辑时间轴条（m120 可视化起步件：数据驱动自绘——ordered 块芯片/
+	## skip 灰/fix 橙/select 菱形/goto 记号；点击芯片=选中行。剪辑可视化的
+	## 第一格——等作者 SVG 规格再标准化）——
+	var strip := Control.new()
+	strip.custom_minimum_size = Vector2(760, 46)
+	box.add_child(strip)
+	_ch_strip = strip
+	var strip_draw := func():
+		strip.draw_rect(Rect2(Vector2.ZERO, strip.size), Color(0.08, 0.09, 0.12))
+		var arr: Array = _ch_rows.duplicate()
+		arr.sort_custom(func(p, q): return int(float(str(p.get("order", "0")))) < int(float(str(q.get("order", "0")))))
+		var n := maxi(1, arr.size())
+		var cw := strip.size.x / float(n)
+		for i2 in arr.size():
+			var r2: Dictionary = arr[i2]
+			var rect := Rect2(Vector2(i2 * cw + 2, 4), Vector2(maxf(6.0, cw - 4.0), 26))
+			var col := Color(0.45, 0.65, 0.9)
+			if str(r2.get("skip", "")) != "":
+				col = Color(0.32, 0.32, 0.36)
+			if str(r2.get("fix", "")) != "":
+				col = Color(0.9, 0.6, 0.3)
+			strip.draw_rect(rect, col)
+			strip.draw_rect(rect, Color(1, 1, 1, 0.25), false, 1.0)
+			if str(r2.get("select", "")) != "":
+				strip.draw_circle(Vector2(rect.position.x + rect.size.x * 0.5, rect.position.y + 4.0), 3.0, Color(1, 1, 1, 0.9))
+			strip.draw_string(ThemeDB.fallback_font, rect.position + Vector2(3, 19), str(r2.get("id", "")),
+				HORIZONTAL_ALIGNMENT_LEFT, -1, 10, Color(1, 1, 1, 0.95))
+			if str(r2.get("goto", "")) != "":
+				strip.draw_string(ThemeDB.fallback_font, rect.position + Vector2(3, 40), "→" + str(r2.get("goto", "")),
+					HORIZONTAL_ALIGNMENT_LEFT, -1, 9, Color(1, 0.85, 0.5))
+	strip.draw.connect(strip_draw)
+	strip.gui_input.connect(func(ev):
+		if ev is InputEventMouseButton and ev.pressed and ev.button_index == MOUSE_BUTTON_LEFT:
+			var arr2: Array = _ch_rows.duplicate()
+			arr2.sort_custom(func(p, q): return int(float(str(p.get("order", "0")))) < int(float(str(q.get("order", "0")))))
+			var n2 := maxi(1, arr2.size())
+			var cw2 := strip.size.x / float(n2)
+			var i3 := clampi(int(ev.position.x / cw2), 0, n2 - 1)
+			var rid := str(arr2[i3].get("id", ""))
+			for li in _ch_rows.size():
+				if str(_ch_rows[li].get("id", "")) == rid:
+					_ch_list.select(li)
+					load_from_row.call(li)
+					break)
 
 	newb.pressed.connect(func():
 		_ch_rows.append({"id": "chapter_%d" % (_ch_rows.size() + 1), "name": "新章节", "order": str(_ch_rows.size() + 1),
