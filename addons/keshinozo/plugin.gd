@@ -14,6 +14,10 @@ extends EditorPlugin
 
 func _enter_tree() -> void:
 	print("[keshinozo] 消望插件启用（versus 自走棋玩法层）")
+	## 【m126 内容域注册（作者批复③）】arrange=杂兵排布字典（自走棋对战语义）
+	var kit := get_node_or_null("/root/THXKit") ## autoload 双环境恒在
+	if kit != null and kit.has_method("register_content_plugin"):
+		kit.register_content_plugin("keshinozo", ["arrange"])
 
 
 func _exit_tree() -> void:

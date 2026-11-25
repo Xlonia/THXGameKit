@@ -317,6 +317,26 @@ func scan_mod_files() -> Array[String]:
 		dir.list_dir_end()
 	return out
 
+## =============================================================
+## 【m126 插件内容域（作者批复③ 20261125——文件格式改进第一批）】
+## 插件启动时注册自己提供的内容域（如 keshinozo=arrange 杂兵排布）；
+## .thx 包内可选 manifest.json={"format":2,"plugins":[...],"domains":{文件夹:插件id}}
+## ——包声明的插件未注册=警告列出（向前兼容不炸）；manifest 作为包内文件
+## 随现有签名链覆盖（.thxp/.thxe 签名对包内文件哈希——防篡改链不变）。
+## 二进制导出约定（README 插件集成节）：主体导出排除各插件目录、每插件单独导出。
+## =============================================================
+var _content_plugins: Dictionary = {} ## 插件id → 内容域数组
+
+func register_content_plugin(id: String, domains: Array) -> void:
+	_content_plugins[id] = domains
+	print("[THXKit] 内容域注册：%s → %s" % [id, str(domains)])
+
+func content_plugin_ids() -> Array:
+	return _content_plugins.keys()
+
+func content_plugin_domains(id: String) -> Array:
+	return _content_plugins.get(id, [])
+
 ## 加载一个 .thx → 返回成功载入的事件名列表
 func load_thx(path: String) -> Array[String]:
 	var names: Array[String] = []
@@ -324,6 +344,14 @@ func load_thx(path: String) -> Array[String]:
 	if zr.open(path) != OK:
 		push_warning("[THXKit] 无法打开 .thx：%s" % path)
 		return names
+	## ⓪ manifest.json（可选——m126 插件内容域声明）
+	if zr.get_files().has("manifest.json"):
+		var parsed: Variant = JSON.parse_string(zr.read_file("manifest.json").get_string_from_utf8())
+		if parsed is Dictionary:
+			for pid in (parsed as Dictionary).get("plugins", []):
+				if not _content_plugins.has(str(pid)):
+					push_warning("[THXKit] 包 %s 依赖插件 %s 未注册（内容域 %s 将按内核域处理）"
+						% [path.get_file(), str(pid), str((parsed as Dictionary).get("domains", {}))])
 	## ① danmaku_event.csv → 事件池
 	if zr.get_files().has("danmaku_event.csv"):
 		var text := zr.read_file("danmaku_event.csv").get_string_from_utf8()
