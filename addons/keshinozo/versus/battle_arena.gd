@@ -421,7 +421,7 @@ func _update_scale() -> void:
 func _make_painter(node_name: String, kind: String) -> Node2D:
 	var n := Node2D.new()
 	n.name = node_name
-	n.set_script(load("res://addons/thxgamekit/kit/addons/keshinozo/versus/arena_painters.gd"))
+	n.set_script(load(get_script().resource_path.get_base_dir().path_join("arena_painters.gd"))) ## 【m126 挂载点无关】同目录自定位
 	n.host = self
 	n.draw_kind = kind
 	## 【m91 探针开关（作者令：探针页开关，下次启动生效）】绘制层计时默认开

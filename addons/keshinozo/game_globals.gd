@@ -23,13 +23,21 @@ extends Node
 ##   danmaku_event_regular.csv / _physical / _functed / _laser / _nodes
 ## 旧的单文件 danmaku_event.csv 兼容读取（老 mod/官方旧包仍可用）。
 const OFFICIAL_EVENT_CSV := "res://gameAssetBase/danmaku_event.csv"
-## 【编辑器扫描兼容 20261114】全局类引用改为 **preload 常量**（编译期路径
-## 绑定，不依赖全局类注册顺序——@tool 化内核后编辑器依赖图提前解析本文件）
-const _DMD := preload("res://addons/thxgamekit/kit/addons/thx_gamekit/core/danmaku/danmaku_event_data.gd")
-const _TL := preload("res://addons/thxgamekit/kit/addons/thx_gamekit/core/danmaku/timeline_data.gd")
-const _CDB := preload("res://addons/thxgamekit/kit/addons/thx_gamekit/core/data/chara_db.gd")
-const _DTX := preload("res://addons/thxgamekit/kit/addons/thx_gamekit/core/danmaku/danmaku_tex.gd")
-const _CTX := preload("res://addons/thxgamekit/kit/addons/thx_gamekit/core/render/chara_tex.gd")
+## 【m126 双环境挂载点无关（20261125 副本项目损坏事故修复）】原 preload
+## 常量编译期绑死 th75 穿透路径（res://addons/thxgamekit/kit/...）——副本
+## （kit standalone，内核在 res://addons/thx_gamekit/）加载即炸=项目损坏。
+## 改**运行时自定位懒 var**：内核与插件在双环境恒同层（副本=addons/ 平级、
+## 宿主 th75=kit/addons/ 平级）——自身目录 ../thx_gamekit 通用；load 失败
+## 返回 null 不炸编译（调用点 _DMD.xxx 语法 var/const 无差，零改动）。
+## _TL 全文件零用点——直接删除。
+func _kload(rel: String) -> GDScript:
+	var base: String = get_script().resource_path.get_base_dir()
+	return load(base.path_join("../thx_gamekit").path_join(rel))
+
+var _DMD: GDScript = _kload("core/danmaku/danmaku_event_data.gd")
+var _CDB: GDScript = _kload("core/data/chara_db.gd")
+var _DTX: GDScript = _kload("core/danmaku/danmaku_tex.gd")
+var _CTX: GDScript = _kload("core/render/chara_tex.gd")
 const TAG_REGULAR := "IsDanmakuRegular"
 const TAG_PHYSICAL := "IsDanmakuPhysical"
 const TAG_FUNCTED := "IsDanmakuFuncted"

@@ -107,7 +107,7 @@ func _ready() -> void:
 func _show_completion() -> void:
 	if Engine.is_editor_hint():
 		return
-	load("res://addons/thxgamekit/kit/addons/keshinozo/ui/completion_view.gd").show(get_tree())
+	load(get_script().resource_path.get_base_dir().path_join("completion_view.gd")).show(get_tree())
 
 ## 【批复】RPG/东方式：Z=选中、X=退出/返回
 var _menu_buttons: Array = []
@@ -129,7 +129,7 @@ func _open_console_tail() -> void:
 		_console_tail.grab_focus()
 		return
 	get_tree().root.gui_embed_subwindows = true ## 内嵌=可拖动子窗口形态
-	var w: Window = load("res://addons/thxgamekit/kit/addons/thx_gamekit/editor/console_tail.gd").new()
+	var w: Window = load(get_script().resource_path.get_base_dir().path_join("../thx_gamekit/editor/console_tail.gd")).new()
 	w.log_path = ProjectSettings.globalize_path("user://thx_gamekit/editor_console.log")
 	w.position = Vector2i(120, 120)
 	add_child(w)
@@ -159,7 +159,7 @@ func _open_settings() -> void:
 	if _settings != null and is_instance_valid(_settings):
 		return ## 已开着
 	_settings = Control.new()
-	_settings.set_script(load("res://addons/thxgamekit/kit/addons/keshinozo/ui/settings_menu.gd"))
+	_settings.set_script(load(get_script().resource_path.get_base_dir().path_join("settings_menu.gd")))
 	_settings.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	add_child(_settings)
 
@@ -181,7 +181,7 @@ func _open_editor_embedded() -> void:
 	w.title = "THX075 弹幕编辑器（内窗口）"
 	w.size = Vector2i(1280, 800)
 	w.position = Vector2i(80, 60)
-	var ed: Control = (load("res://addons/thxgamekit/kit/addons/thx_gamekit/editor/danmaku_editor.gd") as GDScript).new()
+	var ed: Control = (load(get_script().resource_path.get_base_dir().path_join("../thx_gamekit/editor/danmaku_editor.gd")) as GDScript).new()
 	ed.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	w.add_child(ed)
 	w.close_requested.connect(func():

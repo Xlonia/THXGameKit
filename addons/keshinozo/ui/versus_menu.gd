@@ -763,7 +763,7 @@ var capture_hint: Label = null
 ## +未实装机控指令——作者测试时不用再花时间找特定角色
 func _show_completion() -> void:
 	## 【动态 load 20261114】编译期零依赖（@tool 化后全局类扫描期不保证）
-	load("res://addons/thxgamekit/kit/addons/keshinozo/ui/completion_view.gd").show(get_tree())
+	load(get_script().resource_path.get_base_dir().path_join("completion_view.gd")).show(get_tree())
 
 ## 【0.0.9·机控预设点（新二 81 行）】鼠标点选三个预设点（4/5/6 快捷键；存档）
 func _open_preset_points() -> void:
