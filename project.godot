@@ -19,7 +19,7 @@ run/max_fps=60
 [autoload]
 
 THXKit="*res://addons/thx_gamekit/core/kit.gd"
-GameGlobals="*res://addons/thx_gamekit/editor/game_globals_compat.gd"
+GameGlobals="*res://addons/keshinozo/game_globals.gd" ## 【m125 插件化】兼容层退役→插件真全局（字段面四函数全兼容+官方CSV缺文件容错已有——作者批复②=kit编辑器自带玩法）
 
 [display]
 
@@ -28,7 +28,7 @@ display/window/vsync/vsync_mode=0
 
 [editor_plugins]
 
-enabled=PackedStringArray("res://addons/thx_gamekit/plugin.cfg")
+enabled=PackedStringArray("res://addons/thx_gamekit/plugin.cfg", "res://addons/keshinozo/plugin.cfg")
 
 [rendering]
 
