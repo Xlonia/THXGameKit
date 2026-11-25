@@ -32,7 +32,5 @@ enabled=PackedStringArray("res://addons/thx_gamekit/plugin.cfg")
 
 [rendering]
 
-renderer/rendering_method.mobile="gl_compatibility"
-; 【渲染后端20261114】作者卡死数据定性：Vulkan同步风暴（Optimus双GPU每帧GPU同步400ms；2D内核不需要Vulkan特性）
-; 切Compatibility（OpenGL3）——弹幕/编辑器全部2D，GL完全够用且驱动兼容性好
 renderer/rendering_method="gl_compatibility"
+renderer/rendering_method.mobile="gl_compatibility"

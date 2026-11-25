@@ -1,0 +1,41 @@
+GodotEngine v4.7.2.stable.official.ed1dafobf-https://godotengine.org:OpenGL API 3.3.0 NVIDIA 546.30-Compatibility -Using Device: NVIDIA- NVIDIA GeForce RTX 3050 Laptop GPU
+Godot Engine v4.7.2.stable.official.ed1dafobf-https://godotengine.orgOpenGL API 3.3.0 NVIDIA 546.30-Compatibility-Using Device: NVIDIA- NVIDIA GeForce RTX 3050 Laptop GPU
+SCRIPT ERROR: Invalid access to property or key 'spell' on a base object of type 'Dictionary'.
+at:_show_main_page (res://addons/thx_gamekit/editor/danmaku_editor.gd:724)
+GDScript backtrace (most recent call first):
+[O]_show_main_page (res://addons/thxgamekit/editor/danmaku_editor.gd:724)
+Gog2.salca:/g
+OpenGL API 3.3.0 NVIDIA 546.30- Compatibility- Using Device: NVIDIA- NVIDIA GeForce RTX 3050 Laptop GPU
+
+SCRIPT ERROR: Invalid access to property or key 'spell' on a base object of type 'Dictionary'.
+at:_show_main_page (res://addons/thx_gamekit/editor/danmaku_editor.gd:724)
+GDScript backtrace (most recent call first):
+[o]_show_main_page (res://addons/thx_gamekit/editor/danmaku_editor.gd:724)
+SCRIPT ERROR: Invalid access to property or key 'owner' on a base object of type 'RefCounted (TimelineData)'.
+at:_refresh_tl_list (res://addons/thx_gamekit/editor/danmaku_editor.gd:2957)
+GDScript backtrace (most recent call first):
+[O]_refresh_tl_list (res://addons/thx_gamekit/editor/danmaku_editor.gd:2957)
+[1]_build_timeline_page (res://addons/thx_gamekit/editor/danmaku_editor.gd:2949)
+[2]_show_main_page (res://addons/thx_gamekit/editor/danmaku_editor.gd:723)
+Godot Engine v4.7.2.stable.official.ed1dafobf-https://godotengine.orgOpenGL API 3.3.0 NVIDIA 546.30-Compatibility-Using Device: NVIDIA-NVIDIA GeForce RTX 3050 Laptop GPU
+
+SCRIPT ERROR: Invalid access to property or key 'spell' on a base object of type 'Dictionary'.
+at:_show_main_page (res://addons/thx_gamekit/editor/danmaku_editor.gd:724)
+GDScript backtrace (most recent call first):
+[o]_show_main_page (res://addons/thx_gamekit/editor/danmaku_editor.gd:724)
+SCRiPT ERRoR: Invalid access to property or key 'owner' on a base object of type 'RefCounted (TimelineData)'.
+at:_refresh_tl_list (res://addons/thx_gamekit/editor/danmaku_editor.gd:2957)
+GDScript backtrace (most recent call first):
+[O]_refresh_tl_list (res://addons/thx_gamekit/editor/danmaku_editor.gd:2957)
+[1]_build_timeline_page (res://addons/thx_gamekit/editor/danmaku_editor.gd:2949)
+[2]_show_main_page (res://addons/thx_gamekit/editor/danmaku_editor.gd:723)
+SCRIPT ERROR: Invalid access to property or key 'owner' on a base object of type 'RefCounted (TimelineData)'.
+at:_refresh_tl_list (res://addons/thx_gamekit/editor/danmaku_editor.gd:2957)
+GDScript backtrace (most recent call first):
+[O]_refresh_tl_list (res://addons/thx_gamekit/editor/danmaku_editor.gd:2957)
+[1]_on_tl_btn (res://addons/thx_gamekit/editor/danmaku_editor.gd:2970)
+
+主程序错误
+  ERROR: Error importing CSV translation: Invalid locale format '', should be 'language_Script_COUNTRY_VARIANT@extra'. This column will be ignored.
+  WARNING: editor/import/resource_importer_csv_translation.cpp:239 - Locale 'ShootCd' does not contain any translation. This locale will be ignored.
+  WARNING: editor/import/resource_importer_csv_translation.cpp:239 - Locale 'shoot' does not contain any translation. This locale will be ignored.
