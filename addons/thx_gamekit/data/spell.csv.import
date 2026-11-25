@@ -1,0 +1,19 @@
+[remap]
+
+importer="csv_translation"
+type="Translation"
+uid="uid://bhqrbqmlc5y00"
+
+[deps]
+
+files=["res://addons/thx_gamekit/data/spell.spellstart.translation", "res://addons/thx_gamekit/data/spell.spelltick.translation"]
+
+source_file="res://addons/thx_gamekit/data/spell.csv"
+dest_files=["res://addons/thx_gamekit/data/spell.spellstart.translation", "res://addons/thx_gamekit/data/spell.spelltick.translation"]
+
+[params]
+
+compress=1
+delimiter=0
+unescape_keys=false
+unescape_translations=true

@@ -1,0 +1,19 @@
+[remap]
+
+importer="csv_translation"
+type="Translation"
+uid="uid://clopwjdnrlmcy"
+
+[deps]
+
+files=["res://addons/thx_gamekit/data/danmaku_clip.length.translation", "res://addons/thx_gamekit/data/danmaku_clip.ticks.translation", "res://addons/thx_gamekit/data/danmaku_clip.group.translation"]
+
+source_file="res://addons/thx_gamekit/data/danmaku_clip.csv"
+dest_files=["res://addons/thx_gamekit/data/danmaku_clip.length.translation", "res://addons/thx_gamekit/data/danmaku_clip.ticks.translation", "res://addons/thx_gamekit/data/danmaku_clip.group.translation"]
+
+[params]
+
+compress=1
+delimiter=0
+unescape_keys=false
+unescape_translations=true
