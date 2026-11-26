@@ -416,8 +416,10 @@ func _load_test_snapshot() -> void:
 	print("[测试存档] 已读取并回填：%s（选人/开关/场地规则/道具库存）" % str(saves[0]["name"]))
 
 ## 【m112 折叠组】下拉菜单按钮：点开呼出组内原按钮（触发其 pressed 信号，
-## 复用既有处理逻辑与文案）；菜单位置=按钮下方func _open_story_test() -> void:
-	## 【m128】剧情桥测试面板（开关切换——单实例懒建）
+## 复用既有处理逻辑与文案）；菜单位置=按钮下方
+
+func _open_story_test() -> void:
+	## 【m128 剧情桥测试面板（开关切换——单实例懒建）】
 	var existing := get_tree().root.find_child("StoryTestPanel", true, false)
 	if existing != null:
 		(existing as Control).visible = not (existing as Control).visible

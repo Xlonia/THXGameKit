@@ -18,18 +18,23 @@ run/max_fps=60
 
 [autoload]
 
+; 【m125 插件化】GameGlobals=消望插件真全局（兼容层退役——字段面四函数全兼容；
+; 官方 CSV 缺文件容错已有——作者批复②=kit 编辑器自带玩法）
+; 注意：project.godot 的注释符是分号，双井号是 GDScript 的——行尾 ## 会让
+; ConfigFile 解析炸（m126 副本打不开事故）——本文件注释一律用分号。
 THXKit="*res://addons/thx_gamekit/core/kit.gd"
-GameGlobals="*res://addons/thx_gamekit/editor/game_globals_compat.gd"
+GameGlobals="*res://addons/keshinozo/game_globals.gd"
 
 [display]
 
+display/window/subwindows/embed_subwindows=false
 display/window/vsync/vsync_mode=0
 
 [editor_plugins]
 
-enabled=PackedStringArray("res://addons/thx_gamekit/plugin.cfg")
+enabled=PackedStringArray("res://addons/thx_gamekit/plugin.cfg", "res://addons/keshinozo/plugin.cfg")
 
 [rendering]
 
+renderer/rendering_method="gl_compatibility"
 renderer/rendering_method.mobile="gl_compatibility"
-"##ãæ¸²æåç«¯20261114ï¼ä½èå¡æ­»æ°æ®å®æ§ï¼Vulkanåæ­¥é£æ´ââOptimusåGPU##æ¯å¸§GPUåæ­¥400msï¼2Dåæ ¸ä¸éè¦Vulkanç¹æ§ï¼ã##åCompatibilityï¼OpenGL3ï¼ââå¼¹å¹/ç¼è¾å¨å¨é¨2Dï¼GLå®å¨å¤ç¨ä¸é©±å¨å¼å®¹æ§å¥½renderer/rendering_method"="gl_compatibility"
