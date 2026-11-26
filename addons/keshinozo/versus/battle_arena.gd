@@ -47,15 +47,15 @@ var is_preview := false
 ## 【20261002】RD 用主渲染设备（Texture2DRD 零拷贝显示的前提；Forward+），
 ## 本地 RD 仅作无主设备时的回退；DdmGpu/HeatmapField 共享同一 RD。
 var shared_rd: RenderingDevice = null
-var ddm_gpu0: DdmGpu = null
-var ddm_gpu1: DdmGpu = null
+var ddm_gpu0 = null ## 【m128d 挂载点无关】宿主调试域类（scripts/danmaku）副本环境不存在——去类型+构造探测降级
+var ddm_gpu1 = null
 var gpu_ok := false
 ## 【每侧一张战场热力图（作者批复 2026-10-02）】ht_side[0] 加热 fields[0]
 ## （能击中我方的弹幕），ht_side[1] 加热 fields[1]；实体态势十六点采样本侧图。
 ## 我方法弹对本侧热力图天然为 0（"覆写为0"语义）；敌 AI 读对侧图（③期）。
 var ht_side: Array = []
 var hv_side: Array = []           ## ③期：Hv 速度热点图（每侧一张；升降沿彩虹）
-var fam_maps: FamilyMaps = null   ## ③期收官：He/Hd/Hr/Hp 期望系（GPU 轨迹管线）
+var fam_maps = null   ## ③期收官：He/Hd/Hr/Hp 期望系（GPU 轨迹管线）
 var bullet_hash := BulletHash.new()
 var _stamp_buf0 := PackedFloat32Array()
 var _stamp_buf1 := PackedFloat32Array()
@@ -65,7 +65,7 @@ var _sample_n := 1 ## 【采样平滑】1=关（逐帧）；2-5=每 N 帧采样+
 ## —— 【0.0.9·审计 Top2 20261108】bullet_hash C++ 接线（对照开关）——
 ## C++ 管 32px 格构建+粗查询（省 GD 格循环）；GD 端 per-hit 成员判定
 ## （skip_source/beyond_mask/dmg 组装——语义与纯 GD 完全一致）
-var bullet_hash_cpp: Th75BulletHashCpp = null
+var bullet_hash_cpp = null
 var bullet_hash_cpp_enabled := true
 var hcs_cpp_enabled := true ## 【审计 B2】Hcs/Hct C++ 快路径（对照开关）
 var bc_enabled := true ## 【0.0.9·新三 BC】基础规避层（对照开关；false=回退旧移动）
@@ -75,12 +75,12 @@ var bc_enabled := true ## 【0.0.9·新三 BC】基础规避层（对照开关�
 ## 错误的弹上（所见即所判违背，1108k 起）。此表按插入序记录对象，
 ## 同时免疫帧内 swap-remove 搬移（对象引用不随下标变化）。
 var _hash_objs: Array = []
-var motion_hot: Th75MotionHot = null ## 【审计 Top2】slot 制 frozen 位置追踪
+var motion_hot = null ## 【审计 Top2】slot 制 frozen 位置追踪
 var _phys_acc := 0.0 ## 【渲染帧驱动】物理节流累加器（16.6ms 上限锁 60/s）
 var _expired_count := 0
 var _retired_count := 0 ## 【census 探针】累计回收入池          ## 航程到期消失计数（调试：区分"原地消失"来源）
 var _cleared_count := 0          ## 释放消弹计数
-var contour: ContourField = null ## 【0.0.9·等高线（策划新三 52-68）】Hd/Hr 矢量等高线+动画序列
+var contour = null ## 【0.0.9·等高线（策划新三 52-68）】Hd/Hr 矢量等高线+动画序列
 ## —— 【0.0.9·加载屏】开局预热分帧执行（作者批："开始前多花一些时间，
 ## 甚至若干秒来加载"——初始化/缓存全部挪进加载期，对局零冷启动）——
 var _loading := true
@@ -324,28 +324,41 @@ func _init_gpu() -> void:
 	## 且从不释放 → 每次泄漏一个 Vulkan 设备的驱动堆提交，多次后 11G 死机）
 	shared_rd = GameGlobals.arena_rendering_device()
 	var is_main := false
-	ddm_gpu0 = DdmGpu.new(shared_rd)
-	ddm_gpu1 = DdmGpu.new(shared_rd)
-	gpu_ok = ddm_gpu0.ok and ddm_gpu1.ok
-	if gpu_ok:
-		ddm_gpu0.main_device = is_main
-		ddm_gpu1.main_device = is_main
-		for side in 2:
-			var ddm: DdmGpu = ddm_gpu0 if side == 0 else ddm_gpu1
-			var ht := HeatmapField.new(shared_rd)
-			ht.main_device = is_main
-			ht.configure(ddm.image_rid())
-			ht_side.append(ht)
-			var hv := HvField.new(shared_rd, ddm.image_rid(), ddm.prev_image_rid())
-			hv_side.append(hv)
-			if fam_maps == null:
-				fam_maps = FamilyMaps.new(shared_rd, ddm.image_rid())
+	## 【m128d 挂载点无关】宿主调试域类探测（scripts/danmaku——副本环境不存在=整块
+	## 优雅降级：无热力图/无 fam 期望系/无等高线，核心对战逻辑不受影响）
+	var ddm_cls: GDScript = load("res://scripts/danmaku/ddm_gpu.gd")
+	var ht_cls: GDScript = load("res://scripts/danmaku/heatmap_field.gd")
+	var hv_cls: GDScript = load("res://scripts/danmaku/hv_field.gd")
+	var fam_cls: GDScript = load("res://scripts/danmaku/family_maps.gd")
+	var contour_cls: GDScript = load("res://scripts/danmaku/contour_field.gd")
+	if ddm_cls != null and ht_cls != null:
+		ddm_gpu0 = ddm_cls.new(shared_rd)
+		ddm_gpu1 = ddm_cls.new(shared_rd)
+		gpu_ok = ddm_gpu0.ok and ddm_gpu1.ok
+		if gpu_ok:
+			ddm_gpu0.main_device = is_main
+			ddm_gpu1.main_device = is_main
+			for side in 2:
+				var ddm = ddm_gpu0 if side == 0 else ddm_gpu1
+				var ht = ht_cls.new(shared_rd)
+				ht.main_device = is_main
+				ht.configure(ddm.image_rid())
+				ht_side.append(ht)
+				var hv = hv_cls.new(shared_rd, ddm.image_rid(), ddm.prev_image_rid()) if hv_cls != null else null
+				hv_side.append(hv)
+				if fam_maps == null and fam_cls != null:
+					fam_maps = fam_cls.new(shared_rd, ddm.image_rid())
+		else:
+			for side in 2:
+				ht_side.append(ht_cls.new(null)) ## CPU 降级
+				hv_side.append(null)
+		if gpu_ok and fam_maps != null and contour_cls != null:
+			contour = contour_cls.new(shared_rd, fam_maps) ## 【0.0.9·等高线】循环外单建（side 循环内会建两次=泄漏）
 	else:
 		for side in 2:
-			ht_side.append(HeatmapField.new(null)) ## CPU 降级
+			ht_side.append(null)
 			hv_side.append(null)
-	if gpu_ok and fam_maps != null:
-		contour = ContourField.new(shared_rd, fam_maps) ## 【0.0.9·等高线】循环外单建（side 循环内会建两次=泄漏）
+		push_warning("[Arena] 宿主调试域不可用（副本环境）——热力图/期望系/等高线降级关闭")
 	if ClassDB.class_exists("Th75BulletHashCpp"):
 		bullet_hash_cpp = Th75BulletHashCpp.new() ## 【审计 Top2】C++ 空间哈希
 	if ClassDB.class_exists("Th75MotionHot"):
@@ -3266,7 +3279,7 @@ func _heatmap_tick() -> void:
 	if time_frames % 6 != 0:
 		return
 	for side in 2:
-		var ht: HeatmapField = ht_side[side]
+		var ht = ht_side[side]
 		if ht == null:
 			continue
 		if not ht.ok:
@@ -3408,7 +3421,7 @@ func _heatmap_tick() -> void:
 			side_pts.append(ent.position) ## 第49点=自身中心
 		if side_pts.is_empty():
 			continue
-		var ht: HeatmapField = ht_side[side]
+		var ht = ht_side[side]
 		if ht.ok:
 			ht.sample_dispatch(side_pts)
 			_ht_pending[side] = side_ents
@@ -3504,7 +3517,7 @@ var _c_n := 0
 func _consume_pending_samples() -> void:
 	## 消费两拍前的 pending（此时其 GPU 提交早已排空，fence≈0）
 	for side in _ht_pending2:
-		var ht: HeatmapField = ht_side[side]
+		var ht = ht_side[side]
 		if ht != null and ht.ok:
 			var t0 := Time.get_ticks_usec()
 			_apply_ht_vals(ht.sample_read(), _ht_pending2[side])
@@ -3601,7 +3614,7 @@ func _consume_pending_samples() -> void:
 			for v in player_leader.sit16_1d:
 				s += v
 			avg_txt = "领队1d均值=%d" % (s / 16)
-		var ht0: HeatmapField = ht_side[0]
+		var ht0 = ht_side[0]
 		var fam_txt := ""
 		if fam_maps != null and fam_maps.ok:
 			fam_txt = " | 族图adv=%.2fms 批采样=%.2fms" % [fam_maps.adv_us / 1000.0, fam_maps.samp_batch_us / 1000.0]
@@ -4468,6 +4481,8 @@ func _apply_release(ent: BattleEntity, kind: String, free_cost: bool = false) ->
 		## 【0.0.9·消弹热清零（作者批）】Ht 同步清零（与 DDM 同拍——消弹区
 		## 热立即归零；扩散语义保持）
 		for hts in ht_side:
+			if hts == null:
+				continue
 			if hts != null and hts.ok:
 				hts.clear_region(qx, qy, int(radius) + 8)
 	## 【批复 2026-10-13】消弹持续时长 = 剩余P点每100P点1秒，最低1秒
@@ -4676,6 +4691,8 @@ func _clear_bullets_around(ent: BattleEntity) -> void:
 		ddm_gpu0.clear_region(ent.position.x, ent.position.y, int(ent.clear_radius) + 8)
 		ddm_gpu1.clear_region(ent.position.x, ent.position.y, int(ent.clear_radius) + 8)
 		for htc in ht_side:
+			if htc == null:
+				continue
 			if htc != null and htc.ok:
 				htc.clear_region(ent.position.x, ent.position.y, int(ent.clear_radius) + 8)
 		for hvc in hv_side:
@@ -7111,8 +7128,9 @@ func draw_ddm_debug(onto: CanvasItem) -> void:
 				_ht_sprite.position = Vector2(200, 0) ## 【22b 20261103·位置终版】场内右上象限（world 内随缩放；半透明不阻视野） ## 【22b 20261103h】hud 层（不受场裁剪）场右上角外
 				_ht_sprite.modulate = Color(0.2, 1, 0.4, 0.35)
 				hud.add_child(_ht_sprite)
-			_ht_sprite.visible = true
-			_ht_sprite.texture = ht_side[view_side].display_texture()
+			_ht_sprite.visible = ht_side[view_side] != null
+			if ht_side[view_side] != null:
+				_ht_sprite.texture = ht_side[view_side].display_texture()
 		elif _heat_view == 2:
 			var hv = hv_side[view_side] if view_side < hv_side.size() else null
 			if hv != null and hv.ok:
@@ -7126,7 +7144,7 @@ func draw_ddm_debug(onto: CanvasItem) -> void:
 				_ht_sprite.texture = hv.display_texture()
 		elif _heat_view == 9 and fam_maps != null and fam_maps.ok:
 			## 【20261030·①Ha】全局抽象热点图（25×25 马赛克；derive 同拍产出）
-			var ha_tex := fam_maps.display("Ha" + str(view_side))
+			var ha_tex = fam_maps.display("Ha" + str(view_side))
 			if ha_tex != null:
 				if _ht_sprite == null:
 					_ht_sprite = Sprite2D.new()
@@ -7139,7 +7157,7 @@ func draw_ddm_debug(onto: CanvasItem) -> void:
 		elif _heat_view >= 3 and fam_maps != null and fam_maps.ok:
 			## 【③期收官】期望系：3=He 4=Hd 5=Hr 6=Hp（[ 键切方；每侧一张威胁图）
 			var fam_name: String = ["He", "Hd", "Hr", "Hp"][mini(_heat_view - 3, 3)] + str(view_side)
-			var fam_tex := fam_maps.display(fam_name)
+			var fam_tex = fam_maps.display(fam_name)
 			if fam_tex != null:
 				if _ht_sprite == null:
 					_ht_sprite = Sprite2D.new()
