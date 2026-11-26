@@ -97,6 +97,9 @@ var editor_clips: Array = []                 ## 【m86 片段】编辑器工作�
 var preview_event_name := ""                    ## 试炼场要发射的事件名
 
 func _ready() -> void:
+	## 【m126 内容域注册（运行时态——plugin.gd 只在编辑器跑）】arrange=杂兵排布
+	if not THXKit.content_plugin_ids().has("keshinozo"):
+		THXKit.register_content_plugin("keshinozo", ["arrange"])
 	if Engine.is_editor_hint():
 		## 【m92 编辑器态装载部署 spell/clip（作者 20261118：重启后符卡页
 		## 看不到 xlonia_verses/classical——角色页下拉同盲）】编辑器主屏

@@ -149,6 +149,10 @@ func _ready() -> void:
 	var tload_b := Button.new()
 	tload_b.text = "测试存档：读取最新（开发者）"
 	tload_b.pressed.connect(_load_test_snapshot)
+	## 【m128 剧情桥测试面板（作者令：A/C 测试存档+相应测试面板）】
+	var story_b := Button.new()
+	story_b.text = "剧情桥测试（flag/对战请求）"
+	story_b.pressed.connect(_open_story_test)
 	## 【m112 按钮折叠（作者：按钮太多放不下）】两类下拉组（PopupMenu）：
 	## 机控与键位设置=机控预设点/撤退预设点/召唤候补/键位一览；
 	## 存档设置=对战存档/测试存档保存/读取/预设探针。完成度一览保留直挂。
@@ -157,7 +161,7 @@ func _ready() -> void:
 	btn_grid.add_theme_constant_override("h_separation", 12)
 	btn_grid.add_theme_constant_override("v_separation", 6)
 	root.add_child(btn_grid)
-	for b2 in [done_b, _group_menu("机控与键位设置 ▾", [pts_b, ret_b, roster_b, keys_b]),
+	for b2 in [done_b, story_b, _group_menu("机控与键位设置 ▾", [pts_b, ret_b, roster_b, keys_b]),
 			_group_menu("存档设置 ▾", [barch_b, tsave_b, tload_b, probe_b])]:
 		btn_grid.add_child(b2)
 		(b2 as Control).size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -412,7 +416,22 @@ func _load_test_snapshot() -> void:
 	print("[测试存档] 已读取并回填：%s（选人/开关/场地规则/道具库存）" % str(saves[0]["name"]))
 
 ## 【m112 折叠组】下拉菜单按钮：点开呼出组内原按钮（触发其 pressed 信号，
-## 复用既有处理逻辑与文案）；菜单位置=按钮下方
+## 复用既有处理逻辑与文案）；菜单位置=按钮下方func _open_story_test() -> void:
+	## 【m128】剧情桥测试面板（开关切换——单实例懒建）
+	var existing := get_tree().root.find_child("StoryTestPanel", true, false)
+	if existing != null:
+		(existing as Control).visible = not (existing as Control).visible
+		return
+	var ps := load("res://scripts/story_test_panel.gd")
+	if ps == null:
+		push_warning("[versus_menu] story_test_panel.gd 未找到")
+		return
+	var panel: Control = (ps as GDScript).new()
+	panel.name = "StoryTestPanel"
+	get_tree().root.add_child(panel)
+	panel.position = Vector2(80, 80)
+
+
 func _group_menu(title: String, targets: Array) -> Button:
 	var b := Button.new()
 	b.text = title
